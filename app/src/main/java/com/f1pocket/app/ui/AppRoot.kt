@@ -86,11 +86,12 @@ private fun tabOf(route: String?): String = when {
     else -> Routes.HOME
 }
 
+/** Bottom bar: always opens the tab's main screen. Inside a tab (e.g. Replay under More), tapping it goes back to its menu. */
 fun NavHostController.goTab(route: String) {
+    if (popBackStack(route, inclusive = false)) return
     navigate(route) {
-        popUpTo(graph.findStartDestination().id) { saveState = true }
+        popUpTo(graph.findStartDestination().id)
         launchSingleTop = true
-        restoreState = true
     }
 }
 

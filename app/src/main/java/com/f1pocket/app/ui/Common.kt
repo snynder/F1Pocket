@@ -288,13 +288,14 @@ fun Avatar(url: String?, initials: String, size: Dp, border: Color) {
 }
 
 @Composable
-fun StatTile(label: String, value: String, modifier: Modifier = Modifier, sub: String? = null, flag: String = "", color: Color? = null) {
+fun StatTile(label: String, value: String, modifier: Modifier = Modifier, sub: String? = null, flag: String = "", color: Color? = null, suffix: String? = null) {
     val p = pal()
     Column(modifier.clip(RoundedCornerShape(12.dp)).background(color ?: p.card).padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(label, fontSize = 10.sp, color = p.muted, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             Flag(flag, 13.sp)
             Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = p.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (suffix != null) Text(suffix, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = p.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         }
         if (!sub.isNullOrBlank()) Text(sub, fontSize = 10.sp, color = p.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }

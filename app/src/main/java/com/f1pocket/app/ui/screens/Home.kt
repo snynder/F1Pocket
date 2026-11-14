@@ -309,13 +309,13 @@ fun HomeScreen(nav: NavHostController, settings: AppSettings) {
                     item { NextRaceCard(next, now, extra, track, settings, curKind, dot) { nav.navigate(Routes.circuit(next.circuitId, next.season, next.round)) } }
                 }
 
+                data.last?.let { last ->
+                    item { LastRaceCard(last, data.lastResults, photos) { nav.navigate(Routes.race(last.season, last.round)) } }
+                }
+
                 item { SectionTitle(stringResource(R.string.season_numbers, data.year)) }
                 item {
                     LoadBox(leaders, onRetry = { vm.refresh() }) { l -> LeadersGrid(l) }
-                }
-
-                data.last?.let { last ->
-                    item { LastRaceCard(last, data.lastResults, photos) { nav.navigate(Routes.race(last.season, last.round)) } }
                 }
 
                 if (data.drivers.isNotEmpty()) item {
@@ -385,17 +385,17 @@ private fun UpcomingCard(r: Race, isNext: Boolean, onClick: () -> Unit) {
     val p = pal()
     Column(
         Modifier.width(196.dp).clip(RoundedCornerShape(14.dp)).background(p.card)
-            .border(1.dp, if (isNext) p.accent else p.divider, RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+            .border(1.dp, if (isNext) p.accent else p.divider, RoundedCornerShape(14.dp)).clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(1.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Flag(r.flag, 24.sp)
-            Muted(stringResource(R.string.round_n, r.round).uppercase(), 10.sp)
+            Flag(r.flag, 18.sp)
+            Muted(stringResource(R.string.round_n, r.round), 10.sp, Modifier.weight(1f))
+            Mono(Fmt.range(r.firstDay, r.lastDay), 11.sp, FontWeight.Bold)
         }
         Text(Fmt.raceName(r.name), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = p.text, maxLines = 1)
         Muted(r.locality, 11.sp, maxLines = 1)
-        Mono(Fmt.range(r.firstDay, r.lastDay), 12.sp, FontWeight.Bold)
-        Divider()
         Text(
             stringResource(R.string.s_race) + " · " + (r.raceStart?.let { Fmt.weekdayTime(it) } ?: Fmt.weekdayDayMonth(r.date)),
             fontSize = 11.sp, color = p.muted, maxLines = 1
@@ -479,7 +479,7 @@ private fun NextRaceCard(
             add(Triple(stringResource(R.string.first_gp), h?.firstGp?.toString() ?: "—", ""))
             if (h != null) {
                 val king = h.top(h.winners, 1).firstOrNull()
-                if (king != null) add(Triple(stringResource(R.string.most_wins_here), king.first.driver.code, king.first.driver.flag + "|" + stringResource(R.string.n_wins, king.second)))
+                if (king != null) add(Triple(stringResource(R.string.most_wins_here), king.first.driver.code + "\u0000(" + stringResource(R.string.n_wins, king.second) + ")", king.first.driver.flag + "|"))
                 val pole = h.lastPole
                 if (pole != null) add(Triple(stringResource(R.string.last_pole), pole.driver.code, pole.driver.flag + "|" + (pole.time ?: "")))
                 val win = h.lastWinner
@@ -495,7 +495,10 @@ private fun NextRaceCard(
                     row.forEach { (label, value, sub) ->
                         val flag = sub.substringBefore("|", "")
                         val subText = if (sub.contains("|")) sub.substringAfter("|") else sub
-                        StatTile(label, value, Modifier.weight(1f), subText, flag, color = p.bg)
+                        StatTile(
+                            label, value.substringBefore("\u0000"), Modifier.weight(1f), subText, flag, color = p.bg,
+                            suffix = if (value.contains("\u0000")) value.substringAfter("\u0000") else null
+                        )
                     }
                     repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
