@@ -59,13 +59,43 @@ object Updater {
                     else -> State.UpToDate
                 }
             } catch (e: Exception) {
-                if (silent) State.Idle else State.Failed(e.message ?: "error")
+                if (silent) State.Idle else State.Failed(describe(e))
             }
         }
     }
 
+    private fun describe(e: Throwable): String = when (e) {
+        is HttpException -> "HTTP ${e.code}"
+        else -> e.javaClass.simpleName + (e.message?.let { ": $it" } ?: "")
+    }
+
+    /** Never from cache: always asks GitHub. */
+    private val noCache by lazy { Http.client.newBuilder().cache(null).followRedirects(false).build() }
+
     private suspend fun latest(repo: String): Release? {
-        val j = Http.getJson("https://api.github.com/repos/$repo/releases/latest")
+        // 1) the release page redirects to ".../releases/tag/v<N>"; no API, no rate limit
+        val fromPage = runCatching {
+            withContext(Dispatchers.IO) {
+                noCache.newCall(Request.Builder().url("https://github.com/$repo/releases/latest").header("User-Agent", Http.UA).build()).execute().use { r ->
+                    val loc = r.header("Location") ?: return@use null
+                    val tag = loc.substringAfterLast("/tag/", "")
+                    val v = tag.filter { it.isDigit() }.toIntOrNull() ?: return@use null
+                    Release(v, "https://github.com/$repo/releases/download/$tag/F1Pocket.apk", "")
+                }
+            }
+        }.getOrNull()
+        if (fromPage != null) return fromPage
+        // 2) the GitHub API
+        val text = withContext(Dispatchers.IO) {
+            noCache.newCall(
+                Request.Builder().url("https://api.github.com/repos/$repo/releases/latest")
+                    .header("User-Agent", Http.UA).header("Accept", "application/vnd.github+json").build()
+            ).execute().use { r ->
+                if (!r.isSuccessful) throw HttpException(r.code)
+                r.body?.string() ?: ""
+            }
+        }
+        val j = Http.json.parseToJsonElement(text)
         val tag = j.child("tag_name").str() ?: return null
         val version = tag.filter { it.isDigit() }.toIntOrNull() ?: return null
         val apk = j.child("assets").arr().firstOrNull { it.child("name").str()?.endsWith(".apk") == true }
@@ -83,7 +113,7 @@ object Updater {
                     val dir = File(app.cacheDir, "update").apply { mkdirs() }
                     dir.listFiles()?.forEach { it.delete() }
                     val out = File(dir, "F1Pocket-${release.version}.apk")
-                    val client = Http.client.newBuilder().cache(null).build()
+                    val client = Http.client.newBuilder().cache(null).followRedirects(true).build()
                     client.newCall(Request.Builder().url(release.apkUrl).header("User-Agent", Http.UA).build()).execute().use { r ->
                         if (!r.isSuccessful) throw HttpException(r.code)
                         val body = r.body ?: throw IllegalStateException("empty")
@@ -111,7 +141,7 @@ object Updater {
                 }
                 State.Ready(release, file)
             } catch (e: Exception) {
-                State.Failed(e.message ?: "error")
+                State.Failed(describe(e))
             }
             (state.value as? State.Ready)?.let { install(app, it.file) }
         }

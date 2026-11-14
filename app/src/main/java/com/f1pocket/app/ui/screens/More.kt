@@ -347,7 +347,7 @@ fun UpdateBox(s: AppSettings, showUpToDate: Boolean) {
             is Updater.State.Available -> stringResource(R.string.update_available, x.release.version) to (stringResource(R.string.update_install) to { Updater.download(context, x.release) })
             is Updater.State.Downloading -> stringResource(R.string.update_downloading, x.percent) to null
             is Updater.State.Ready -> stringResource(R.string.update_ready, x.release.version) to (stringResource(R.string.update_install) to { Updater.install(context, x.file); Unit })
-            is Updater.State.Failed -> (if (x.reason == "no_repo") stringResource(R.string.update_no_repo) else stringResource(R.string.update_failed)) to
+            is Updater.State.Failed -> (if (x.reason == "no_repo") stringResource(R.string.update_no_repo) else stringResource(R.string.update_failed) + " (" + x.reason + ")") to
                 (stringResource(R.string.update_check) to { Updater.check(s) })
         }
         val msg = r.first
