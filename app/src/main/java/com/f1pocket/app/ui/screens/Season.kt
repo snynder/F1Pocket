@@ -87,15 +87,23 @@ private val YEARS = (Year.now().value downTo 1950).toList()
 
 // ===================== STANDINGS =====================
 
+data class StandingsData(val teams: List<TeamStanding>, val drivers: List<DriverStanding>, val prevTeams: Map<String, Int>, val prevDrivers: Map<String, Int>)
+
+/** Places gained since the previous round (positive = up). */
+fun posDelta(pos: String, prev: Int?): Int? = pos.toIntOrNull()?.let { now -> prev?.let { it - now } }
+
 class StandingsVM : BaseVM() {
     val year = MutableStateFlow(Year.now().value)
-    val data = MutableStateFlow<Load<Pair<List<TeamStanding>, List<DriverStanding>>>>(Load.Loading)
+    val data = MutableStateFlow<Load<StandingsData>>(Load.Loading)
     init { select(year.value) }
     fun select(y: Int) {
         year.value = y
         load(data) {
             val t = runCatching { Jolpica.constructorStandings(y) }.getOrDefault(emptyList())
-            t to Jolpica.driverStandings(y)
+            val d = Jolpica.driverStandings(y)
+            val pt = runCatching { Jolpica.previousPositions(y, teams = true) }.getOrDefault(emptyMap())
+            val pd = runCatching { Jolpica.previousPositions(y, teams = false) }.getOrDefault(emptyMap())
+            StandingsData(t, d, pt, pd)
         }
     }
 }
@@ -113,7 +121,7 @@ fun StandingsScreen(nav: NavHostController) {
             }
         }
         item {
-            LoadBox(data, onRetry = { vm.select(year) }) { (teams, drivers) ->
+            LoadBox(data, onRetry = { vm.select(year) }) { (teams, drivers, prevTeams, prevDrivers) ->
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     if (teams.isEmpty() && drivers.isEmpty()) EmptyBox(stringResource(R.string.no_standings))
                     if (teams.isNotEmpty()) CardBox(padding = 0.dp) {
@@ -122,8 +130,11 @@ fun StandingsScreen(nav: NavHostController) {
                         teams.forEach { t ->
                             Divider()
                             Column {
-                                RankRow(t.pos, teamColor(t.team.color), t.team.flag, t.team.name, null, Fmt.points(t.points), extra = "${t.wins}")
-                                Box(Modifier.padding(start = 60.dp, end = 14.dp, bottom = 8.dp).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(p.card2)) {
+                                RankRow(
+                                    t.pos, teamColor(t.team.color), t.team.flag, t.team.name, null, Fmt.points(t.points), extra = "${t.wins}",
+                                    delta = posDelta(t.pos, prevTeams[t.team.id]), showDelta = prevTeams.isNotEmpty()
+                                )
+                                Box(Modifier.padding(start = if (prevTeams.isNotEmpty()) 96.dp else 60.dp, end = 14.dp, bottom = 8.dp).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(p.card2)) {
                                     Box(Modifier.fillMaxWidth(((t.points.toDoubleOrNull() ?: 0.0) / max).toFloat()).height(4.dp).background(teamColor(t.team.color)))
                                 }
                             }
@@ -133,7 +144,10 @@ fun StandingsScreen(nav: NavHostController) {
                         StandingsHeader(stringResource(R.string.drivers))
                         drivers.forEach { d ->
                             Divider()
-                            RankRow(d.pos, teamColor(d.team?.color ?: 0xFF8A929C), d.driver.flag, d.driver.name, d.team?.name, Fmt.points(d.points), extra = "${d.wins}")
+                            RankRow(
+                                d.pos, teamColor(d.team?.color ?: 0xFF8A929C), d.driver.flag, d.driver.name, d.team?.name, Fmt.points(d.points), extra = "${d.wins}",
+                                delta = posDelta(d.pos, prevDrivers[d.driver.id]), showDelta = prevDrivers.isNotEmpty()
+                            )
                         }
                     }
                 }

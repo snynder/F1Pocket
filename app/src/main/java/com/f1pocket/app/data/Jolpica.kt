@@ -114,8 +114,21 @@ object Jolpica {
     suspend fun calendar(year: Int): List<Race> =
         mr("$year.json?limit=100").path("RaceTable", "Races").arr().map { parseRace(it) }
 
-    suspend fun driverStandings(year: Int): List<DriverStanding> =
-        mr("$year/driverStandings.json?limit=100").path("StandingsTable", "StandingsLists").arr().firstOrNull()
+    private suspend fun standingsList(year: Int, round: Int?, kind: String): JsonElement? =
+        mr(if (round == null) "$year/$kind.json?limit=100" else "$year/$round/$kind.json?limit=100")
+            .path("StandingsTable", "StandingsLists").arr().firstOrNull()
+
+    /** Positions after the round before the latest one, to show places gained or lost. Id -> position. */
+    suspend fun previousPositions(year: Int, teams: Boolean): Map<String, Int> {
+        val kind = if (teams) "constructorStandings" else "driverStandings"
+        val round = standingsList(year, null, kind).child("round").int() ?: return emptyMap()
+        if (round <= 1) return emptyMap()
+        return if (teams) constructorStandings(year, round - 1).mapNotNull { s -> s.pos.toIntOrNull()?.let { s.team.id to it } }.toMap()
+        else driverStandings(year, round - 1).mapNotNull { s -> s.pos.toIntOrNull()?.let { s.driver.id to it } }.toMap()
+    }
+
+    suspend fun driverStandings(year: Int, round: Int? = null): List<DriverStanding> =
+        standingsList(year, round, "driverStandings")
             .child("DriverStandings").arr().map {
                 DriverStanding(
                     pos = it.child("position").str() ?: it.child("positionText").str() ?: "-",
@@ -126,8 +139,8 @@ object Jolpica {
                 )
             }
 
-    suspend fun constructorStandings(year: Int): List<TeamStanding> =
-        mr("$year/constructorStandings.json?limit=100").path("StandingsTable", "StandingsLists").arr().firstOrNull()
+    suspend fun constructorStandings(year: Int, round: Int? = null): List<TeamStanding> =
+        standingsList(year, round, "constructorStandings")
             .child("ConstructorStandings").arr().map {
                 TeamStanding(
                     pos = it.child("position").str() ?: it.child("positionText").str() ?: "-",

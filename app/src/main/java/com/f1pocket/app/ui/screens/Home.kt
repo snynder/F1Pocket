@@ -115,7 +115,9 @@ data class HomeCore(
     val last: Race?,
     val lastResults: List<ResultRow>,
     val drivers: List<DriverStanding>,
-    val teams: List<TeamStanding>
+    val teams: List<TeamStanding>,
+    val prevDrivers: Map<String, Int> = emptyMap(),
+    val prevTeams: Map<String, Int> = emptyMap()
 )
 
 data class NextExtra(val history: CircuitHistory?, val weather: List<DayWeather>?, val lastPodium: List<ResultRow>)
@@ -172,7 +174,10 @@ class HomeVM : BaseVM() {
             var drivers = Jolpica.driverStandings(year)
             var teams = Jolpica.constructorStandings(year)
             if (drivers.isEmpty()) { drivers = Jolpica.driverStandings(year - 1); teams = Jolpica.constructorStandings(year - 1) }
-            HomeCore(year, races + upcomingYear, next, last, lastResults, drivers, teams)
+            val standYear = if (Jolpica.driverStandings(year).isEmpty()) year - 1 else year
+            val pd = runCatching { Jolpica.previousPositions(standYear, teams = false) }.getOrDefault(emptyMap())
+            val pt = runCatching { Jolpica.previousPositions(standYear, teams = true) }.getOrDefault(emptyMap())
+            HomeCore(year, races + upcomingYear, next, last, lastResults, drivers, teams, pd, pt)
         }.invokeOnCompletion { afterCore() }
     }
 
@@ -332,7 +337,10 @@ fun HomeScreen(nav: NavHostController, settings: AppSettings) {
                         Box(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) { SectionTitle(stringResource(R.string.drivers_top10)) }
                         data.drivers.take(10).forEach { d ->
                             Divider()
-                            RankRow(d.pos, teamColor(d.team?.color ?: 0xFF8A929C), d.driver.flag, d.driver.name, d.team?.name, Fmt.points(d.points))
+                            RankRow(
+                                d.pos, teamColor(d.team?.color ?: 0xFF8A929C), d.driver.flag, d.driver.name, d.team?.name, Fmt.points(d.points),
+                                delta = posDelta(d.pos, data.prevDrivers[d.driver.id]), showDelta = data.prevDrivers.isNotEmpty()
+                            )
                         }
                         SeeAllFooter(stringResource(R.string.see_full_drivers)) { nav.goTab(Routes.STANDINGS) }
                     }
@@ -342,7 +350,10 @@ fun HomeScreen(nav: NavHostController, settings: AppSettings) {
                         Box(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) { SectionTitle(stringResource(R.string.constructors)) }
                         data.teams.take(11).forEach { t ->
                             Divider()
-                            RankRow(t.pos, teamColor(t.team.color), t.team.flag, t.team.name, null, Fmt.points(t.points))
+                            RankRow(
+                                t.pos, teamColor(t.team.color), t.team.flag, t.team.name, null, Fmt.points(t.points),
+                                delta = posDelta(t.pos, data.prevTeams[t.team.id]), showDelta = data.prevTeams.isNotEmpty()
+                            )
                         }
                         SeeAllFooter(stringResource(R.string.see_full_teams)) { nav.goTab(Routes.STANDINGS) }
                     }
@@ -488,7 +499,7 @@ private fun NextRaceCard(
             add(Triple(stringResource(R.string.first_gp), h?.firstGp?.toString() ?: "—", ""))
             if (h != null) {
                 val king = h.top(h.winners, 1).firstOrNull()
-                if (king != null) add(Triple(stringResource(R.string.most_wins_here), king.first.driver.code + "\u0000(" + stringResource(R.string.n_wins, king.second) + ")", king.first.driver.flag + "|"))
+                if (king != null) add(Triple(stringResource(R.string.most_wins_here), "${king.first.driver.code} (${king.second})", king.first.driver.flag + "|"))
                 val pole = h.lastPole
                 if (pole != null) add(Triple(stringResource(R.string.last_pole), pole.driver.code, pole.driver.flag + "|" + (pole.time ?: "")))
                 val win = h.lastWinner
@@ -498,16 +509,13 @@ private fun NextRaceCard(
             }
         }
         if (extra is Load.Loading) LoadingBox()
-        Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             facts.chunked(3).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     row.forEach { (label, value, sub) ->
                         val flag = sub.substringBefore("|", "")
                         val subText = if (sub.contains("|")) sub.substringAfter("|") else sub
-                        StatTile(
-                            label, value.substringBefore("\u0000"), Modifier.weight(1f), subText, flag, color = p.bg,
-                            suffix = if (value.contains("\u0000")) value.substringAfter("\u0000") else null
-                        )
+                        StatTile(label, value, Modifier.weight(1f), subText, flag, color = p.bg)
                     }
                     repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                 }

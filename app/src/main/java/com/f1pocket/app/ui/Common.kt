@@ -290,14 +290,14 @@ fun Avatar(url: String?, initials: String, size: Dp, border: Color) {
 @Composable
 fun StatTile(label: String, value: String, modifier: Modifier = Modifier, sub: String? = null, flag: String = "", color: Color? = null, suffix: String? = null) {
     val p = pal()
-    Column(modifier.clip(RoundedCornerShape(12.dp)).background(color ?: p.card).padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(modifier.clip(RoundedCornerShape(12.dp)).background(color ?: p.card).padding(horizontal = 10.dp, vertical = 7.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
         Text(label, fontSize = 10.sp, color = p.muted, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             Flag(flag, 13.sp)
             Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = p.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (suffix != null) Text(suffix, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = p.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         }
-        if (!sub.isNullOrBlank()) Text(sub, fontSize = 10.sp, color = p.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (!sub.isNullOrBlank()) Text(sub, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = p.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -306,13 +306,33 @@ fun KeyValueRow(left: @Composable RowScope.() -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), content = left)
 }
 
+/** Places gained (green ▲) or lost (red ▼) since the previous round. */
+@Composable
+fun PositionDelta(delta: Int?) {
+    val d = delta ?: 0
+    Text(
+        when {
+            d > 0 -> "▲$d"
+            d < 0 -> "▼${-d}"
+            else -> ""
+        },
+        fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+        color = if (d > 0) Color(0xFF2ECC71) else Color(0xFFFF4D4D),
+        modifier = Modifier.width(26.dp)
+    )
+}
+
 /** Ranked row used by standings and lists. */
 @Composable
-fun RankRow(pos: String, color: Color, flag: String, title: String, subtitle: String?, value: String, extra: String? = null, onClick: (() -> Unit)? = null) {
+fun RankRow(
+    pos: String, color: Color, flag: String, title: String, subtitle: String?, value: String,
+    extra: String? = null, onClick: (() -> Unit)? = null, delta: Int? = null, showDelta: Boolean = false
+) {
     var m = Modifier.fillMaxWidth()
     if (onClick != null) m = m.clickable(onClick = onClick)
     Row(m.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(pos, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = pal().text, textAlign = TextAlign.End, modifier = Modifier.widthIn(min = 20.dp))
+        if (showDelta) PositionDelta(delta)
         TeamBar(color)
         Flag(flag, 15.sp)
         Column(Modifier.weight(1f)) {
