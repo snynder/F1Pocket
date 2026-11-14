@@ -336,7 +336,8 @@ class CircuitVM(private val id: String, private val year: Int?, private val roun
     init { refresh() }
     fun refresh() {
         load(data) {
-            val race = if (year != null) runCatching { Jolpica.calendar(year).firstOrNull { it.round == round || (round == null && it.circuitId == id) } }.getOrNull() else null
+            val y = year
+            val race = if (y != null) runCatching { Jolpica.calendar(y).firstOrNull { it.round == round || (round == null && it.circuitId == id) } }.getOrNull() else null
             val info = if (race == null) Jolpica.circuitInfo(id) else null
             val h = Jolpica.circuitHistory(id)
             CircuitData(race?.circuitName ?: info?.first ?: id, race?.locality ?: info?.second ?: "", race?.country ?: info?.third ?: "", race, h)
