@@ -256,4 +256,27 @@
     <string name="race_duel">Race head-to-head</string>
     <string name="points_per_race">Points per race</string>
     <string name="last_5">Last 5 results</string>
+    <string name="see_full_drivers">Full drivers\' standings</string>
+    <string name="see_full_teams">Full constructors\' standings</string>
+    <string name="uppercase_title">Text in upper case</string>
+    <string name="uppercase_sub">Shows every text in capital letters</string>
+    <string name="offline_title">Offline</string>
+    <string name="offline_sub">Everything you open stays saved and shows without internet. Download the whole season to have every race, result and map available offline.</string>
+    <string name="offline_download">Download season for offline use</string>
+    <string name="offline_progress">Downloading %1$d of %2$d…</string>
+    <string name="offline_done">Season saved on this phone.</string>
+    <string name="offline_done_partial">Season saved. %1$d items failed; try again later.</string>
+    <string name="updates_title">Updates</string>
+    <string name="version_n">Version %1$d</string>
+    <string name="update_check">Check for updates</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_none">You have the latest version.</string>
+    <string name="update_available">Version %1$d is available.</string>
+    <string name="update_install">Update now</string>
+    <string name="update_downloading">Downloading… %1$d%%</string>
+    <string name="update_ready">Version %1$d downloaded. Tap to install.</string>
+    <string name="update_no_repo">Set the GitHub repository below.</string>
+    <string name="update_failed">Could not check. The repository must be public and have at least one release.</string>
+    <string name="update_repo">GitHub repository (owner/repo)</string>
+    <string name="update_repo_note">Filled in automatically by the GitHub build. Change only if you move the project.</string>
 </resources>

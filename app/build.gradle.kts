@@ -16,16 +16,22 @@ android {
         targetSdk = 35
         versionCode = runNumber
         versionName = "1.0.$runNumber"
+        // "owner/repo" of the GitHub repository that builds the app, used by the in-app updater
+        buildConfigField("String", "UPDATE_REPO", "\"${System.getenv("GITHUB_REPOSITORY") ?: ""}\"")
     }
 
-    // A fixed key, so every APK built by GitHub installs over the previous one.
-    // Fine for personal use. Before publishing on Google Play, create a new key and keep it secret.
+    // The signing key comes from GitHub secrets (KEYSTORE_BASE64 + KEYSTORE_PASSWORD), never from the repository.
+    // The workflow writes it to a temporary file and passes its path in KEYSTORE_FILE.
+    val ksFile = System.getenv("KEYSTORE_FILE")?.let { file(it) }
+    val ksPass = System.getenv("KEYSTORE_PASSWORD")
     signingConfigs {
-        create("f1pocket") {
-            storeFile = file("f1pocket.jks")
-            storePassword = "f1pocket123"
-            keyAlias = "f1pocket"
-            keyPassword = "f1pocket123"
+        if (ksFile != null && ksFile.exists() && !ksPass.isNullOrEmpty()) {
+            create("f1pocket") {
+                storeFile = ksFile
+                storePassword = ksPass
+                keyAlias = "f1pocket"
+                keyPassword = ksPass
+            }
         }
     }
 
@@ -34,10 +40,8 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("f1pocket")
-        }
-        debug {
-            signingConfig = signingConfigs.getByName("f1pocket")
+            // without the secrets (e.g. a build on your own PC) it falls back to the debug key
+            signingConfig = signingConfigs.findByName("f1pocket") ?: signingConfigs.getByName("debug")
         }
     }
 
@@ -50,6 +54,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

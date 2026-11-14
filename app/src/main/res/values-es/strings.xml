@@ -255,4 +255,27 @@
     <string name="race_duel">Duelo en carrera</string>
     <string name="points_per_race">Puntos por carrera</string>
     <string name="last_5">Últimos 5 resultados</string>
+    <string name="see_full_drivers">Clasificación completa de pilotos</string>
+    <string name="see_full_teams">Clasificación completa de constructores</string>
+    <string name="uppercase_title">Texto en mayúsculas</string>
+    <string name="uppercase_sub">Muestra todos los textos en mayúsculas</string>
+    <string name="offline_title">Sin conexión</string>
+    <string name="offline_sub">Todo lo que abres queda guardado y se ve sin internet. Descarga la temporada entera para tener todas las carreras, resultados y mapas sin conexión.</string>
+    <string name="offline_download">Descargar temporada para usar sin conexión</string>
+    <string name="offline_progress">Descargando %1$d de %2$d…</string>
+    <string name="offline_done">Temporada guardada en este teléfono.</string>
+    <string name="offline_done_partial">Temporada guardada. %1$d elementos fallaron; inténtalo más tarde.</string>
+    <string name="updates_title">Actualizaciones</string>
+    <string name="version_n">Versión %1$d</string>
+    <string name="update_check">Buscar actualización</string>
+    <string name="update_checking">Buscando…</string>
+    <string name="update_none">Tienes la última versión.</string>
+    <string name="update_available">La versión %1$d está disponible.</string>
+    <string name="update_install">Actualizar ahora</string>
+    <string name="update_downloading">Descargando… %1$d%%</string>
+    <string name="update_ready">Versión %1$d descargada. Toca para instalar.</string>
+    <string name="update_no_repo">Indica el repositorio de GitHub abajo.</string>
+    <string name="update_failed">No se pudo comprobar. El repositorio debe ser público y tener al menos un release.</string>
+    <string name="update_repo">Repositorio de GitHub (usuario/repo)</string>
+    <string name="update_repo_note">Se completa solo con el build de GitHub. Cámbialo solo si mueves el proyecto.</string>
 </resources>

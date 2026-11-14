@@ -10,6 +10,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import okhttp3.Cache
+import okhttp3.CacheControl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -34,7 +35,7 @@ object Http {
     fun init(context: Context) {
         if (::client.isInitialized) return
         client = OkHttpClient.Builder()
-            .cache(Cache(File(context.cacheDir, "http"), 80L * 1024 * 1024))
+            .cache(Cache(File(context.cacheDir, "http"), 300L * 1024 * 1024))
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .pingInterval(15, TimeUnit.SECONDS)
@@ -85,20 +86,37 @@ object Http {
                 if (wait > 0) delay(wait)
                 lastCall[host] = System.currentTimeMillis()
             }
-            val (code, body) = withContext(Dispatchers.IO) {
-                val req = Request.Builder().url(url).header("User-Agent", UA).build()
-                client.newCall(req).execute().use { r -> r.code to (r.body?.string() ?: "") }
+            val (code, body) = try {
+                call(url, forceCache = false)
+            } catch (e: IOException) {
+                // offline or network error: use what is saved on the phone, however old
+                return fromCache(url) ?: throw e
             }
             when {
-                code == 401 && host.contains("openf1") -> throw LiveWindowException()
+                code == 401 && host.contains("openf1") -> return fromCache(url) ?: throw LiveWindowException()
                 (code == 429 || code >= 500) && attempt < 4 -> {
                     attempt++
                     delay(1500L * attempt)
                 }
                 code in 200..299 -> return body.removePrefix("﻿")
+                code == 429 || code >= 500 -> return fromCache(url) ?: throw HttpException(code)
                 else -> throw HttpException(code)
             }
         }
+    }
+
+    private suspend fun call(url: String, forceCache: Boolean): Pair<Int, String> = withContext(Dispatchers.IO) {
+        val b = Request.Builder().url(url).header("User-Agent", UA)
+        if (forceCache) b.cacheControl(CacheControl.FORCE_CACHE)
+        client.newCall(b.build()).execute().use { r -> r.code to (r.body?.string() ?: "") }
+    }
+
+    /** The saved copy of a response, ignoring its age. Null when it was never downloaded. */
+    private suspend fun fromCache(url: String): String? = try {
+        val (code, body) = call(url, forceCache = true)
+        if (code in 200..299) body.removePrefix("\uFEFF") else null
+    } catch (_: IOException) {
+        null
     }
 
     suspend fun getJson(url: String): JsonElement {

@@ -29,9 +29,21 @@ App Android (Kotlin + Jetpack Compose) de Fórmula 1. Não depende do site: fala
 
 Se o build falhar, abra o passo "Build" na execução, copie as linhas com `e:` (erros do Kotlin) e me mande.
 
+## Atualizar pelo próprio app
+
+Cada build publica um **Release** no GitHub (`v<número do build>`) com o `F1Pocket.apk`. Ao abrir, o app consulta o último release e, se houver versão nova, mostra um aviso no Início. Também dá para verificar em Ajustes › Atualizações. "Atualizar agora" baixa o APK e abre o instalador do Android. Na primeira vez, o Android pede para permitir instalações do F1Pocket.
+
+- O repositório precisa ser **público**, porque o GitHub não mostra releases de repositório privado sem login.
+- O repositório é preenchido sozinho no build. Se mudar de lugar, ajuste em Ajustes › Atualizações.
+- A primeira versão com o atualizador precisa ser instalada à mão, uma vez.
+
+## Offline
+
+Tudo o que o app baixa fica salvo no celular e é usado quando não há internet: resultados, classificações, calendário, histórico, mapas e fotos. Em Ajustes › Offline, "Baixar temporada para usar offline" já deixa a temporada inteira salva, inclusive telas que você ainda não abriu.
+
 ## Observações
 
-- **Assinatura:** o arquivo `app/f1pocket.jks` (senha `f1pocket123`) está no repositório para que todo build saia com a mesma assinatura e o app atualize por cima sem desinstalar. Se o repositório for público e você quiser trocar a chave, gere outra com `keytool` e ajuste `app/build.gradle.kts`. Ao trocar a chave, o app precisa ser desinstalado uma vez.
+- **Assinatura:** a chave que assina o app não fica no repositório. Ela está nos segredos do GitHub (`KEYSTORE_BASE64` e `KEYSTORE_PASSWORD`, em Settings › Secrets and variables › Actions). Sem eles, o build para com um aviso. Guarde o arquivo de segredos em lugar seguro: se a chave se perder, o app precisa ser desinstalado uma vez para instalar uma versão com chave nova.
 - **Onde assistir:** a tabela de emissoras por país fica em `app/src/main/java/com/f1pocket/app/data/Static.kt` (`BROADCAST`). Revise a cada temporada.
 - **Transcrição dos rádios:** em Ajustes › "URL das transcrições", aponte para a pasta de JSONs que o workflow do seu site já gera, por exemplo
   `https://raw.githubusercontent.com/SEU_USUARIO/SEU_REPO_DO_SITE/main/data/radios/`

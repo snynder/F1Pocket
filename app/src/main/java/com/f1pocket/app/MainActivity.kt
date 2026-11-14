@@ -6,12 +6,14 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.f1pocket.app.data.AppSettings
 import com.f1pocket.app.data.Repo
 import com.f1pocket.app.ui.AppRoot
 import com.f1pocket.app.ui.F1Theme
+import com.f1pocket.app.ui.LocalUppercase
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,7 +25,9 @@ class MainActivity : AppCompatActivity() {
         setContent {
             val settings by Repo.settings.flow.collectAsState(initial = AppSettings())
             F1Theme(settings.theme) {
-                AppRoot(settings)
+                CompositionLocalProvider(LocalUppercase provides settings.uppercase) {
+                    AppRoot(settings)
+                }
             }
         }
     }

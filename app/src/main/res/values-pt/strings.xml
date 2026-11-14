@@ -255,4 +255,27 @@
     <string name="race_duel">Duelo na corrida</string>
     <string name="points_per_race">Pontos por corrida</string>
     <string name="last_5">Últimos 5 resultados</string>
+    <string name="see_full_drivers">Classificação completa de pilotos</string>
+    <string name="see_full_teams">Classificação completa de construtores</string>
+    <string name="uppercase_title">Texto em caixa alta</string>
+    <string name="uppercase_sub">Mostra todos os textos em letras maiúsculas</string>
+    <string name="offline_title">Offline</string>
+    <string name="offline_sub">Tudo que você abre fica salvo e aparece sem internet. Baixe a temporada inteira para ter todas as corridas, resultados e mapas disponíveis offline.</string>
+    <string name="offline_download">Baixar temporada para usar offline</string>
+    <string name="offline_progress">Baixando %1$d de %2$d…</string>
+    <string name="offline_done">Temporada salva neste celular.</string>
+    <string name="offline_done_partial">Temporada salva. %1$d itens falharam; tente de novo mais tarde.</string>
+    <string name="updates_title">Atualizações</string>
+    <string name="version_n">Versão %1$d</string>
+    <string name="update_check">Verificar atualização</string>
+    <string name="update_checking">Verificando…</string>
+    <string name="update_none">Você está na versão mais recente.</string>
+    <string name="update_available">A versão %1$d está disponível.</string>
+    <string name="update_install">Atualizar agora</string>
+    <string name="update_downloading">Baixando… %1$d%%</string>
+    <string name="update_ready">Versão %1$d baixada. Toque para instalar.</string>
+    <string name="update_no_repo">Informe o repositório do GitHub abaixo.</string>
+    <string name="update_failed">Não foi possível verificar. O repositório precisa ser público e ter pelo menos um release.</string>
+    <string name="update_repo">Repositório do GitHub (usuario/repo)</string>
+    <string name="update_repo_note">Preenchido automaticamente pelo build do GitHub. Só mude se trocar o projeto de lugar.</string>
 </resources>

@@ -29,10 +29,11 @@ import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.Text
+import com.f1pocket.app.ui.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -58,6 +59,8 @@ import com.f1pocket.app.data.AppSettings
 import com.f1pocket.app.data.Flags
 import com.f1pocket.app.data.Jolpica
 import com.f1pocket.app.data.Keys
+import com.f1pocket.app.data.Offline
+import com.f1pocket.app.data.Updater
 import com.f1pocket.app.data.Repo
 import com.f1pocket.app.data.SessionKind
 import com.f1pocket.app.data.Static
@@ -174,6 +177,11 @@ fun SettingsScreen(nav: NavHostController, s: AppSettings) {
             }
         }
         item {
+            CardBox(padding = 0.dp) {
+                ToggleRow(stringResource(R.string.uppercase_title), stringResource(R.string.uppercase_sub), s.uppercase) { on -> edit({ it[Keys.uppercase] = on }) }
+            }
+        }
+        item {
             val current = AppCompatDelegate.getApplicationLocales().toLanguageTags()
             val systemLabel = stringResource(R.string.lang_system)
             CardBox {
@@ -271,6 +279,91 @@ fun SettingsScreen(nav: NavHostController, s: AppSettings) {
                     }.padding(6.dp)
                 )
             }
+        }
+
+        item { Muted(stringResource(R.string.offline_title), 12.sp) }
+        item { OfflineCard() }
+
+        item { Muted(stringResource(R.string.updates_title), 12.sp) }
+        item {
+            CardBox {
+                UpdateBox(s, showUpToDate = true)
+                var repo by remember { mutableStateOf(s.updateRepo) }
+                OutlinedTextField(
+                    value = repo, onValueChange = { repo = it }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    label = { Text(stringResource(R.string.update_repo)) },
+                    placeholder = { androidx.compose.material3.Text(Updater.repo(s).ifEmpty { "usuario/F1Pocket" }) }
+                )
+                Muted(stringResource(R.string.update_repo_note), 11.sp, Modifier.padding(top = 6.dp))
+                Text(
+                    stringResource(R.string.save), color = p.accentText, fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                    modifier = Modifier.padding(top = 10.dp).clickable { edit({ it[Keys.updateRepo] = repo.trim() }) }.padding(6.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun OfflineCard() {
+    val p = pal()
+    val st by Offline.state.collectAsState()
+    CardBox {
+        Muted(stringResource(R.string.offline_sub), 12.sp)
+        when (val x = st) {
+            is Offline.State.Running -> {
+                LinearProgressIndicator(
+                    progress = { if (x.total > 0) x.done.toFloat() / x.total else 0f },
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp), color = p.accent, trackColor = p.card2
+                )
+                Muted(stringResource(R.string.offline_progress, x.done, x.total), 11.sp, Modifier.padding(top = 6.dp))
+            }
+            else -> {
+                if (x is Offline.State.Done) Muted(
+                    if (x.failed == 0) stringResource(R.string.offline_done) else stringResource(R.string.offline_done_partial, x.failed),
+                    11.sp, Modifier.padding(top = 8.dp)
+                )
+                Text(
+                    stringResource(R.string.offline_download), color = p.accentText, fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                    modifier = Modifier.padding(top = 10.dp).clickable { Offline.downloadSeason() }.padding(6.dp)
+                )
+            }
+        }
+    }
+}
+
+/** Update status and action. Used in Settings and, when there is a new version, at the top of Home. */
+@Composable
+fun UpdateBox(s: AppSettings, showUpToDate: Boolean) {
+    val p = pal()
+    val context = LocalContext.current
+    val st by Updater.state.collectAsState()
+    Column {
+        Text(stringResource(R.string.version_n, Updater.currentVersion), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = p.text)
+        val r: Pair<String?, Pair<String, () -> Unit>?> = when (val x = st) {
+            is Updater.State.Idle -> null to (stringResource(R.string.update_check) to { Updater.check(s) })
+            is Updater.State.Checking -> stringResource(R.string.update_checking) to null
+            is Updater.State.UpToDate -> (if (showUpToDate) stringResource(R.string.update_none) else null) to (stringResource(R.string.update_check) to { Updater.check(s) })
+            is Updater.State.Available -> stringResource(R.string.update_available, x.release.version) to (stringResource(R.string.update_install) to { Updater.download(context, x.release) })
+            is Updater.State.Downloading -> stringResource(R.string.update_downloading, x.percent) to null
+            is Updater.State.Ready -> stringResource(R.string.update_ready, x.release.version) to (stringResource(R.string.update_install) to { Updater.install(context, x.file); Unit })
+            is Updater.State.Failed -> (if (x.reason == "no_repo") stringResource(R.string.update_no_repo) else stringResource(R.string.update_failed)) to
+                (stringResource(R.string.update_check) to { Updater.check(s) })
+        }
+        val msg = r.first
+        val action = r.second
+        if (st is Updater.State.Downloading) {
+            LinearProgressIndicator(
+                progress = { (st as Updater.State.Downloading).percent / 100f },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp), color = p.accent, trackColor = p.card2
+            )
+        }
+        if (msg != null) Muted(msg, 12.sp, Modifier.padding(top = 6.dp))
+        if (action != null) {
+            Text(
+                action.first, color = p.accentText, fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                modifier = Modifier.padding(top = 8.dp).clickable { action.second() }.padding(6.dp)
+            )
         }
     }
 }

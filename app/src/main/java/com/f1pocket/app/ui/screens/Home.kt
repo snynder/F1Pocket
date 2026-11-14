@@ -1,5 +1,10 @@
 package com.f1pocket.app.ui.screens
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,7 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Text
+import com.f1pocket.app.ui.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -33,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -58,10 +64,15 @@ import com.f1pocket.app.data.Race
 import com.f1pocket.app.data.ResultRow
 import com.f1pocket.app.data.SeasonLeaders
 import com.f1pocket.app.data.SessionKind
+import com.f1pocket.app.data.SessionTime
+import com.f1pocket.app.data.live.LiveParser
+import com.f1pocket.app.data.live.LiveTimingClient
+import com.f1pocket.app.data.live.LiveView
 import com.f1pocket.app.data.Static
 import com.f1pocket.app.data.TeamStanding
 import com.f1pocket.app.data.TrackGeometry
 import com.f1pocket.app.data.Tracks
+import com.f1pocket.app.data.Updater
 import com.f1pocket.app.data.Weather
 import com.f1pocket.app.ui.BaseVM
 import com.f1pocket.app.ui.CardBox
@@ -85,6 +96,7 @@ import com.f1pocket.app.ui.pal
 import com.f1pocket.app.ui.sessionName
 import com.f1pocket.app.ui.teamColor
 import com.f1pocket.app.ui.valueOrNull
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -111,7 +123,32 @@ class HomeVM : BaseVM() {
     val track = MutableStateFlow<TrackGeometry?>(null)
     val photos = MutableStateFlow<Map<String, String>>(emptyMap())
 
+    val liveView = MutableStateFlow<LiveView?>(null)
+    private var liveClient: LiveTimingClient? = null
+    private var liveJob: Job? = null
+
     init { refresh() }
+
+    /** Connects to the F1 live feed only while a session is on, to know if it is green, SC/VSC or red flag. */
+    fun watchLive(on: Boolean) {
+        if (on && liveClient == null) {
+            val c = LiveTimingClient(viewModelScope)
+            liveClient = c
+            c.connect()
+            liveJob = viewModelScope.launch {
+                c.data.collect { if (it.isNotEmpty()) liveView.value = runCatching { LiveParser.parse(it) }.getOrNull() }
+            }
+        } else if (!on && liveClient != null) {
+            liveJob?.cancel()
+            liveClient?.disconnect()
+            liveClient = null
+            liveView.value = null
+        }
+    }
+
+    override fun onCleared() {
+        liveClient?.disconnect()
+    }
 
     fun refresh() {
         load(core) {
@@ -157,6 +194,47 @@ class HomeVM : BaseVM() {
     }
 }
 
+/** The session on now (scheduled window, with a margin), whatever the banner settings. */
+fun currentSession(races: List<Race>, now: Instant): Pair<Race, SessionTime>? {
+    for (r in races) for (s in r.sessions) {
+        if (now.isAfter(s.start.minusSeconds(10 * 60)) && now.isBefore(s.end.plusSeconds(30 * 60))) return r to s
+    }
+    return null
+}
+
+enum class DotColor { GREEN, YELLOW, RED }
+
+data class LiveDotState(val color: DotColor, val label: String?)
+
+/** Whether the session is actually running, and its flag, from the live feed when available. */
+@Composable
+fun liveDotState(s: SessionTime, v: LiveView?, now: Instant): LiveDotState? {
+    val running = when (v?.status) {
+        "Started", "Aborted" -> true
+        "Finished", "Finalised", "Ends" -> false
+        else -> !now.isBefore(s.start) && now.isBefore(s.end)
+    }
+    if (!running) return null
+    return when {
+        v?.trackStatus == "5" || v?.status == "Aborted" -> LiveDotState(DotColor.RED, stringResource(R.string.flag_red))
+        v?.trackStatus == "4" -> LiveDotState(DotColor.YELLOW, stringResource(R.string.safety_car))
+        v?.trackStatus == "6" || v?.trackStatus == "7" -> LiveDotState(DotColor.YELLOW, stringResource(R.string.vsc))
+        else -> LiveDotState(DotColor.GREEN, null)
+    }
+}
+
+@Composable
+fun BlinkingDot(color: DotColor, size: androidx.compose.ui.unit.Dp = 9.dp) {
+    val t = rememberInfiniteTransition(label = "dot")
+    val alpha by t.animateFloat(1f, 0.15f, infiniteRepeatable(tween(650), RepeatMode.Reverse), label = "alpha")
+    val c = when (color) {
+        DotColor.GREEN -> Color(0xFF2ECC71)
+        DotColor.YELLOW -> Color(0xFFFFC400)
+        DotColor.RED -> Color(0xFFFF2D2D)
+    }
+    Box(Modifier.size(size).alpha(alpha).clip(CircleShape).background(c))
+}
+
 /** The session happening now, if any, and if the user wants the banner for it. */
 fun liveSession(races: List<Race>, settings: AppSettings, now: Instant): Pair<Race, SessionKind>? {
     for (r in races) for (s in r.sessions) {
@@ -176,11 +254,17 @@ fun HomeScreen(nav: NavHostController, settings: AppSettings) {
     val leaders by vm.leaders.collectAsState()
     val track by vm.track.collectAsState()
     val photos by vm.photos.collectAsState()
+    val liveView by vm.liveView.collectAsState()
     var now by remember { mutableStateOf(Instant.now()) }
     LaunchedEffect(Unit) {
-        while (true) { delay(30_000); now = Instant.now() }
+        while (true) { delay(15_000); now = Instant.now() }
     }
     val p = pal()
+    val current = core.valueOrNull?.let { currentSession(it.races, now) }
+    LaunchedEffect(current != null) { vm.watchLive(current != null) }
+    val dot = current?.let { liveDotState(it.second, liveView, now) }
+    val update by Updater.state.collectAsState()
+    LaunchedEffect(Unit) { Updater.check(settings, silent = true) }
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
@@ -197,13 +281,16 @@ fun HomeScreen(nav: NavHostController, settings: AppSettings) {
                 }
             }
         }
+        if (update is Updater.State.Available || update is Updater.State.Downloading || update is Updater.State.Ready) {
+            item { CardBox(color = pal().liveBg) { UpdateBox(settings, showUpToDate = false) } }
+        }
         when (val c = core) {
             is Load.Loading -> item { LoadingBox() }
             is Load.Err -> item { ErrorBox(c.error) { vm.refresh() } }
             is Load.Ok -> {
                 val data = c.value
                 val live = liveSession(data.races, settings, now)
-                if (live != null) item { LiveBanner(live.first, live.second) { nav.navigate(Routes.LIVE) } }
+                if (live != null) item { LiveBanner(live.first, live.second, dot) { nav.navigate(Routes.LIVE) } }
 
                 val upcoming = data.races.filter { !it.isFinished(now) }.take(8)
                 if (upcoming.isNotEmpty()) {
@@ -218,7 +305,8 @@ fun HomeScreen(nav: NavHostController, settings: AppSettings) {
                 }
 
                 data.next?.let { next ->
-                    item { NextRaceCard(next, now, extra, track, settings) { nav.navigate(Routes.circuit(next.circuitId, next.season, next.round)) } }
+                    val curKind = current?.takeIf { it.first.season == next.season && it.first.round == next.round }?.second?.kind
+                    item { NextRaceCard(next, now, extra, track, settings, curKind, dot) { nav.navigate(Routes.circuit(next.circuitId, next.season, next.round)) } }
                 }
 
                 item { SectionTitle(stringResource(R.string.season_numbers, data.year)) }
@@ -226,48 +314,63 @@ fun HomeScreen(nav: NavHostController, settings: AppSettings) {
                     LoadBox(leaders, onRetry = { vm.refresh() }) { l -> LeadersGrid(l) }
                 }
 
+                data.last?.let { last ->
+                    item { LastRaceCard(last, data.lastResults, photos) { nav.navigate(Routes.race(last.season, last.round)) } }
+                }
+
                 if (data.drivers.isNotEmpty()) item {
                     CardBox(padding = 0.dp) {
-                        Box(Modifier.padding(start = 14.dp, end = 6.dp, top = 8.dp)) {
-                            SectionTitle(stringResource(R.string.drivers_top10), stringResource(R.string.full), onAction = { nav.goTab(Routes.STANDINGS) })
-                        }
+                        Box(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) { SectionTitle(stringResource(R.string.drivers_top10)) }
                         data.drivers.take(10).forEach { d ->
                             Divider()
                             RankRow(d.pos, teamColor(d.team?.color ?: 0xFF8A929C), d.driver.flag, d.driver.name, d.team?.name, Fmt.points(d.points))
                         }
+                        SeeAllFooter(stringResource(R.string.see_full_drivers)) { nav.goTab(Routes.STANDINGS) }
                     }
                 }
                 if (data.teams.isNotEmpty()) item {
                     CardBox(padding = 0.dp) {
-                        Box(Modifier.padding(start = 14.dp, end = 6.dp, top = 8.dp)) {
-                            SectionTitle(stringResource(R.string.constructors), stringResource(R.string.full), onAction = { nav.goTab(Routes.STANDINGS) })
-                        }
+                        Box(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) { SectionTitle(stringResource(R.string.constructors)) }
                         data.teams.take(11).forEach { t ->
                             Divider()
                             RankRow(t.pos, teamColor(t.team.color), t.team.flag, t.team.name, null, Fmt.points(t.points))
                         }
+                        SeeAllFooter(stringResource(R.string.see_full_teams)) { nav.goTab(Routes.STANDINGS) }
                     }
                 }
 
-                data.last?.let { last ->
-                    item { LastRaceCard(last, data.lastResults, photos) { nav.navigate(Routes.race(last.season, last.round)) } }
-                }
             }
         }
     }
 }
 
 @Composable
-private fun LiveBanner(race: Race, kind: SessionKind, onClick: () -> Unit) {
+private fun SeeAllFooter(text: String, onClick: () -> Unit) {
+    val p = pal()
+    Divider()
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = p.accentText, modifier = Modifier.weight(1f))
+        Text("›", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = p.accentText)
+    }
+}
+
+@Composable
+private fun LiveBanner(race: Race, kind: SessionKind, dot: LiveDotState?, onClick: () -> Unit) {
     val p = pal()
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.liveBg)
             .border(1.dp, p.accent.copy(alpha = 0.5f), RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Box(Modifier.size(10.dp).clip(CircleShape).background(Color(0xFFFF3B30)))
+        BlinkingDot(dot?.color ?: DotColor.GREEN, 11.dp)
         Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.live_now), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = p.accentText)
+            Text(
+                stringResource(R.string.live_now) + (dot?.label?.let { " · $it" } ?: ""),
+                fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = p.accentText
+            )
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Flag(race.flag, 14.sp)
                 Text("${sessionName(kind)} · ${Fmt.raceName(race.name)}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = p.text, maxLines = 1)
@@ -301,7 +404,10 @@ private fun UpcomingCard(r: Race, isNext: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun NextRaceCard(next: Race, now: Instant, extra: Load<NextExtra>, track: TrackGeometry?, settings: AppSettings, onCircuit: () -> Unit) {
+private fun NextRaceCard(
+    next: Race, now: Instant, extra: Load<NextExtra>, track: TrackGeometry?, settings: AppSettings,
+    liveKind: SessionKind?, dot: LiveDotState?, onCircuit: () -> Unit
+) {
     val p = pal()
     CardBox(padding = 0.dp) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -337,8 +443,17 @@ private fun NextRaceCard(next: Race, now: Instant, extra: Load<NextExtra>, track
         // sessions of the weekend in the device time zone
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             next.sessions.forEach { s ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
-                    Text(sessionName(s.kind), fontSize = 12.sp, color = p.text, modifier = Modifier.weight(1f), fontWeight = if (s.kind == SessionKind.RACE) FontWeight.Bold else FontWeight.Normal)
+                val isLive = s.kind == liveKind && dot != null
+                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (isLive) {
+                        BlinkingDot(dot!!.color)
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    Text(
+                        sessionName(s.kind) + (if (isLive) dot?.label?.let { " · $it" } ?: "" else ""),
+                        fontSize = 12.sp, color = p.text, modifier = Modifier.weight(1f),
+                        fontWeight = if (s.kind == SessionKind.RACE || isLive) FontWeight.Bold else FontWeight.Normal
+                    )
                     Mono(Fmt.weekdayTime(s.start), 12.sp, FontWeight.Normal, p.muted)
                 }
             }

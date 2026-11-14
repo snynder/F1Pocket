@@ -22,7 +22,9 @@ data class AppSettings(
     val leadMinutes: Int = 15,
     val banner: Map<SessionKind, Boolean> = SessionKind.entries.associateWith { true },
     val transcriptsUrl: String = "",
-    val whisperKey: String = ""
+    val whisperKey: String = "",
+    val uppercase: Boolean = true,
+    val updateRepo: String = ""
 ) {
     val effectiveCountry: String get() = country ?: Static.deviceCountry()
 }
@@ -34,6 +36,8 @@ object Keys {
     val lead = intPreferencesKey("lead_minutes")
     val transcripts = stringPreferencesKey("transcripts_url")
     val whisper = stringPreferencesKey("whisper_key")
+    val uppercase = booleanPreferencesKey("uppercase")
+    val updateRepo = stringPreferencesKey("update_repo")
     fun notif(k: SessionKind) = booleanPreferencesKey("notif_" + k.name)
     fun banner(k: SessionKind) = booleanPreferencesKey("banner_" + k.name)
 }
@@ -51,7 +55,9 @@ class SettingsRepo(private val context: Context) {
             leadMinutes = p[Keys.lead] ?: d.leadMinutes,
             banner = SessionKind.entries.associateWith { p[Keys.banner(it)] ?: true },
             transcriptsUrl = p[Keys.transcripts] ?: d.transcriptsUrl,
-            whisperKey = p[Keys.whisper] ?: d.whisperKey
+            whisperKey = p[Keys.whisper] ?: d.whisperKey,
+            uppercase = p[Keys.uppercase] ?: d.uppercase,
+            updateRepo = p[Keys.updateRepo] ?: d.updateRepo
         )
     }
 
