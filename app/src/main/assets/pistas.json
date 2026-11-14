@@ -1,0 +1,151 @@
+{
+  "_nota": "Posições relativas às curvas: m = metros depois (+) ou antes (-) da curva, no sentido da corrida. Valores aproximados a partir dos mapas oficiais de 2026; ajuste se alguma faixa ficar curta ou comprida.",
+
+  "Melbourne": {
+    "straight_mode": [
+      { "de": { "curva": 14, "m": 40 }, "ate": { "curva": 1,  "m": -60 } },
+      { "de": { "curva": 2,  "m": 30 }, "ate": { "curva": 3,  "m": -40 } },
+      { "de": { "curva": 5,  "m": 40 }, "ate": { "curva": 6,  "m": -40 } },
+      { "de": { "curva": 8,  "m": 40 }, "ate": { "curva": 9,  "m": -40 } },
+      { "de": { "curva": 10, "m": 40 }, "ate": { "curva": 11, "m": -40 } }
+    ],
+    "overtake": { "deteccao": { "curva": 13, "m": 25 }, "ativacao": { "curva": 14, "m": -25 } }
+  },
+
+  "Shanghai": {
+    "straight_mode": [
+      { "de": { "curva": 16, "m": 40 }, "ate": { "curva": 1,  "m": -60 } },
+      { "de": { "curva": 4,  "m": 40 }, "ate": { "curva": 6,  "m": -40 } },
+      { "de": { "curva": 10, "m": 60 }, "ate": { "curva": 11, "m": -40 } },
+      { "de": { "curva": 13, "m": 60 }, "ate": { "curva": 14, "m": -60 } }
+    ],
+    "overtake": { "deteccao": { "curva": 16, "m": -15 }, "ativacao": { "curva": 16, "m": 40 } }
+  },
+
+  "Suzuka": {
+    "straight_mode": [
+      { "de": { "curva": 18, "m": 60 }, "ate": { "curva": 1,  "m": -80 } },
+      { "de": { "curva": 14, "m": 60 }, "ate": { "curva": 15, "m": -100 } }
+    ],
+    "overtake": { "deteccao": { "curva": 17, "m": -5 }, "ativacao": { "curva": 18, "m": 10 } }
+  },
+
+  "Miami": {
+    "straight_mode": [
+      { "de": { "curva": 19, "m": 40 }, "ate": { "curva": 1,  "m": -50 } },
+      { "de": { "curva": 8,  "m": 60 }, "ate": { "curva": 11, "m": -60 } },
+      { "de": { "curva": 16, "m": 60 }, "ate": { "curva": 17, "m": -60 } }
+    ],
+    "overtake": { "deteccao": { "curva": 17, "m": 30 }, "ativacao": { "curva": 18, "m": 30 } }
+  },
+
+  "Montreal": {
+    "straight_mode": [
+      { "de": { "curva": 14, "m": 60 }, "ate": { "curva": 1,  "m": -40 } },
+      { "de": { "curva": 7,  "m": 40 }, "ate": { "curva": 8,  "m": -60 } },
+      { "de": { "curva": 11, "m": 30 }, "ate": { "curva": 13, "m": -80 } }
+    ],
+    "overtake": { "deteccao": { "curva": 13, "m": -20 }, "ativacao": { "curva": 14, "m": 30 } }
+  },
+
+  "Monte Carlo": {
+    "straight_mode": [],
+    "overtake": { "deteccao": { "curva": 17, "m": -30 }, "ativacao": { "curva": 18, "m": 20 } }
+  },
+
+  "Catalunya": {
+    "straight_mode": [
+      { "de": { "curva": 14, "m": 60 }, "ate": { "curva": 1,  "m": -80 } },
+      { "de": { "curva": 3,  "m": 60 }, "ate": { "curva": 4,  "m": -60 } },
+      { "de": { "curva": 5,  "m": 60 }, "ate": { "curva": 7,  "m": -50 } },
+      { "de": { "curva": 9,  "m": 60 }, "ate": { "curva": 10, "m": -50 } }
+    ],
+    "overtake": { "deteccao": { "curva": 13, "m": 10 }, "ativacao": { "curva": 14, "m": -50 } }
+  },
+
+  "Spielberg": {
+    "straight_mode": [
+      { "de": { "curva": 10, "m": 40 }, "ate": { "curva": 1,  "m": -60 } },
+      { "de": { "curva": 1,  "m": 60 }, "ate": { "curva": 3,  "m": -60 } },
+      { "de": { "curva": 3,  "m": 60 }, "ate": { "curva": 4,  "m": -60 } },
+      { "de": { "curva": 8,  "m": 40 }, "ate": { "curva": 9,  "m": -50 } }
+    ],
+    "overtake": { "deteccao": { "curva": 10, "m": -40 }, "ativacao": { "curva": 10, "m": 60 } }
+  },
+
+  "Silverstone": {
+    "straight_mode": [
+      { "de": { "curva": 18, "m": 30 }, "ate": { "curva": 1,  "m": -80 } },
+      { "de": { "curva": 5,  "m": 60 }, "ate": { "curva": 6,  "m": -60 } },
+      { "de": { "curva": 7,  "m": 60 }, "ate": { "curva": 9,  "m": -80 } },
+      { "de": { "curva": 14, "m": 40 }, "ate": { "curva": 15, "m": -60 } }
+    ],
+    "overtake": { "deteccao": { "curva": 17, "m": 10 }, "ativacao": { "curva": 18, "m": -20 } }
+  },
+
+  "Spa-Francorchamps": {
+    "straight_mode": [
+      { "de": { "curva": 19, "m": 60 }, "ate": { "curva": 1,  "m": -40 } },
+      { "de": { "curva": 1,  "m": 50 }, "ate": { "curva": 2,  "m": -20 } },
+      { "de": { "curva": 4,  "m": 40 }, "ate": { "curva": 5,  "m": -60 } },
+      { "de": { "curva": 15, "m": 40 }, "ate": { "curva": 16, "m": -80 } },
+      { "de": { "curva": 17, "m": 40 }, "ate": { "curva": 18, "m": -60 } }
+    ],
+    "overtake": { "deteccao": { "curva": 18, "m": 15 }, "ativacao": { "curva": 19, "m": 30 } }
+  },
+
+  "Hungaroring": {
+    "straight_mode": [
+      { "de": { "curva": 14, "m": 40 }, "ate": { "curva": 1,  "m": -60 } },
+      { "de": { "curva": 1,  "m": 40 }, "ate": { "curva": 2,  "m": -60 } },
+      { "de": { "curva": 3,  "m": 60 }, "ate": { "curva": 4,  "m": -40 } },
+      { "de": { "curva": 11, "m": 50 }, "ate": { "curva": 12, "m": -60 } }
+    ],
+    "overtake": { "deteccao": { "curva": 14, "m": -60 }, "ativacao": { "curva": 14, "m": 30 } }
+  },
+
+  "Zandvoort": {
+    "straight_mode": [
+      { "de": { "curva": 14, "m": 50 }, "ate": { "curva": 1,  "m": -60 } },
+      { "de": { "curva": 10, "m": 40 }, "ate": { "curva": 11, "m": -60 } }
+    ],
+    "overtake": { "deteccao": { "curva": 13, "m": -50 }, "ativacao": { "curva": 14, "m": -40 } }
+  },
+
+  "Monza": {
+    "straight_mode": [
+      { "de": { "curva": 11, "m": 60 }, "ate": { "curva": 1,  "m": -80 } },
+      { "de": { "curva": 3,  "m": 60 }, "ate": { "curva": 4,  "m": -60 } },
+      { "de": { "curva": 7,  "m": 60 }, "ate": { "curva": 8,  "m": -60 } },
+      { "de": { "curva": 10, "m": 40 }, "ate": { "curva": 11, "m": -60 } }
+    ],
+    "overtake": { "deteccao": { "curva": 11, "m": -40 }, "ativacao": { "curva": 11, "m": 40 } }
+  },
+
+  "Madring": {
+    "straight_mode": [
+      { "de": { "curva": 22, "m": 30 }, "ate": { "curva": 1,  "m": -60 } },
+      { "de": { "curva": 3,  "m": 40 }, "ate": { "curva": 4,  "m": -60 } }
+    ],
+    "overtake": { "deteccao": { "curva": 22, "m": -30 }, "ativacao": { "curva": 22, "m": 30 } }
+  },
+
+  "Baku": {
+    "straight_mode": [
+      { "de": { "curva": 19, "m": 60 }, "ate": { "curva": 1,  "m": -60 } },
+      { "de": { "curva": 2,  "m": 40 }, "ate": { "curva": 3,  "m": -60 } }
+    ],
+    "overtake": { "deteccao": { "curva": 16, "m": 30 }, "ativacao": { "curva": 17, "m": -10 } }
+  },
+
+  "Singapore": {
+    "straight_mode": [
+      { "de": { "curva": 19, "m": 40 }, "ate": { "curva": 1,  "m": -60 } },
+      { "de": { "curva": 5,  "m": 60 }, "ate": { "curva": 7,  "m": -60 } },
+      { "de": { "curva": 9,  "m": 40 }, "ate": { "curva": 10, "m": -60 } },
+      { "de": { "curva": 13, "m": 40 }, "ate": { "curva": 14, "m": -60 } },
+      { "de": { "curva": 15, "m": 30 }, "ate": { "curva": 16, "m": -60 } }
+    ],
+    "overtake": { "deteccao": { "curva": 16, "m": 10 }, "ativacao": { "curva": 17, "m": 30 } }
+  }
+}

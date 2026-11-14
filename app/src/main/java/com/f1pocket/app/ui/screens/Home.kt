@@ -1,0 +1,529 @@
+package com.f1pocket.app.ui.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
+import com.f1pocket.app.R
+import com.f1pocket.app.data.AppSettings
+import com.f1pocket.app.data.CircuitHistory
+import com.f1pocket.app.data.DayWeather
+import com.f1pocket.app.data.DriverStanding
+import com.f1pocket.app.data.Flags
+import com.f1pocket.app.data.Jolpica
+import com.f1pocket.app.data.OpenF1
+import com.f1pocket.app.data.Race
+import com.f1pocket.app.data.ResultRow
+import com.f1pocket.app.data.SeasonLeaders
+import com.f1pocket.app.data.SessionKind
+import com.f1pocket.app.data.Static
+import com.f1pocket.app.data.TeamStanding
+import com.f1pocket.app.data.TrackGeometry
+import com.f1pocket.app.data.Tracks
+import com.f1pocket.app.data.Weather
+import com.f1pocket.app.ui.BaseVM
+import com.f1pocket.app.ui.CardBox
+import com.f1pocket.app.ui.Avatar
+import com.f1pocket.app.ui.Divider
+import com.f1pocket.app.ui.ErrorBox
+import com.f1pocket.app.ui.Flag
+import com.f1pocket.app.ui.Fmt
+import com.f1pocket.app.ui.Load
+import com.f1pocket.app.ui.LoadBox
+import com.f1pocket.app.ui.LoadingBox
+import com.f1pocket.app.ui.Mono
+import com.f1pocket.app.ui.Muted
+import com.f1pocket.app.ui.RankRow
+import com.f1pocket.app.ui.Routes
+import com.f1pocket.app.ui.SectionTitle
+import com.f1pocket.app.ui.StatTile
+import com.f1pocket.app.ui.TrackMap
+import com.f1pocket.app.ui.goTab
+import com.f1pocket.app.ui.pal
+import com.f1pocket.app.ui.sessionName
+import com.f1pocket.app.ui.teamColor
+import com.f1pocket.app.ui.valueOrNull
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import java.time.Duration
+import java.time.Instant
+import java.time.Year
+
+data class HomeCore(
+    val year: Int,
+    val races: List<Race>,
+    val next: Race?,
+    val last: Race?,
+    val lastResults: List<ResultRow>,
+    val drivers: List<DriverStanding>,
+    val teams: List<TeamStanding>
+)
+
+data class NextExtra(val history: CircuitHistory?, val weather: List<DayWeather>?, val lastPodium: List<ResultRow>)
+
+class HomeVM : BaseVM() {
+    val core = MutableStateFlow<Load<HomeCore>>(Load.Loading)
+    val extra = MutableStateFlow<Load<NextExtra>>(Load.Loading)
+    val leaders = MutableStateFlow<Load<SeasonLeaders>>(Load.Loading)
+    val track = MutableStateFlow<TrackGeometry?>(null)
+    val photos = MutableStateFlow<Map<String, String>>(emptyMap())
+
+    init { refresh() }
+
+    fun refresh() {
+        load(core) {
+            val now = Instant.now()
+            var year = Year.now().value
+            var races = Jolpica.calendar(year)
+            if (races.isEmpty()) { year -= 1; races = Jolpica.calendar(year) }
+            var next = races.firstOrNull { !it.isFinished(now) }
+            val upcomingYear = if (next == null) runCatching { Jolpica.calendar(year + 1) }.getOrDefault(emptyList()) else emptyList()
+            if (next == null) next = upcomingYear.firstOrNull()
+            var last: Race? = null
+            var lastResults: List<ResultRow> = emptyList()
+            for (r in races.filter { it.isFinished(now) }.reversed().take(2)) {
+                val (_, res) = Jolpica.raceResults(r.season, r.round)
+                if (res.isNotEmpty()) { last = r; lastResults = res; break }
+            }
+            var drivers = Jolpica.driverStandings(year)
+            var teams = Jolpica.constructorStandings(year)
+            if (drivers.isEmpty()) { drivers = Jolpica.driverStandings(year - 1); teams = Jolpica.constructorStandings(year - 1) }
+            HomeCore(year, races + upcomingYear, next, last, lastResults, drivers, teams)
+        }.invokeOnCompletion { afterCore() }
+    }
+
+    private fun afterCore() {
+        val c = core.value.valueOrNull ?: return
+        viewModelScope.launch { photos.value = OpenF1.latestHeadshots() }
+        load(leaders) { Jolpica.seasonLeaders(c.year) }
+        val next = c.next
+        if (next == null) {
+            extra.value = Load.Ok(NextExtra(null, null, emptyList()))
+            return
+        }
+        load(extra) {
+            val history = runCatching { Jolpica.circuitHistory(next.circuitId) }.getOrNull()
+            val weather = runCatching { Weather.forecast(next.lat, next.lon, next.firstDay, next.lastDay) }.getOrNull()
+            val lw = history?.lastWinner
+            val podium = if (lw != null) runCatching { Jolpica.raceResults(lw.season, lw.round).second.take(3) }.getOrDefault(emptyList()) else emptyList()
+            NextExtra(history, weather, podium)
+        }
+        viewModelScope.launch {
+            track.value = runCatching { Tracks.get(next.name, minOf(next.season, Year.now().value)) }.getOrNull()
+        }
+    }
+}
+
+/** The session happening now, if any, and if the user wants the banner for it. */
+fun liveSession(races: List<Race>, settings: AppSettings, now: Instant): Pair<Race, SessionKind>? {
+    for (r in races) for (s in r.sessions) {
+        if (settings.banner[s.kind] != true) continue
+        val from = s.start.minusSeconds(10 * 60)
+        val to = s.end.plusSeconds(20 * 60)
+        if (now.isAfter(from) && now.isBefore(to)) return r to s.kind
+    }
+    return null
+}
+
+@Composable
+fun HomeScreen(nav: NavHostController, settings: AppSettings) {
+    val vm: HomeVM = viewModel()
+    val core by vm.core.collectAsState()
+    val extra by vm.extra.collectAsState()
+    val leaders by vm.leaders.collectAsState()
+    val track by vm.track.collectAsState()
+    val photos by vm.photos.collectAsState()
+    var now by remember { mutableStateOf(Instant.now()) }
+    LaunchedEffect(Unit) {
+        while (true) { delay(30_000); now = Instant.now() }
+    }
+    val p = pal()
+
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    buildAnnotatedString {
+                        withStyle(SpanStyle(color = p.accent)) { append("F1") }
+                        append("Pocket")
+                    },
+                    fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = p.text, modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = { nav.navigate(Routes.SETTINGS) }) {
+                    Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.settings), tint = p.muted)
+                }
+            }
+        }
+        when (val c = core) {
+            is Load.Loading -> item { LoadingBox() }
+            is Load.Err -> item { ErrorBox(c.error) { vm.refresh() } }
+            is Load.Ok -> {
+                val data = c.value
+                val live = liveSession(data.races, settings, now)
+                if (live != null) item { LiveBanner(live.first, live.second) { nav.navigate(Routes.LIVE) } }
+
+                val upcoming = data.races.filter { !it.isFinished(now) }.take(8)
+                if (upcoming.isNotEmpty()) {
+                    item { SectionTitle(stringResource(R.string.upcoming), stringResource(R.string.calendar), onAction = { nav.goTab(Routes.SEASON) }) }
+                    item {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            items(upcoming, key = { "${it.season}-${it.round}" }) { r ->
+                                UpcomingCard(r, r == data.next) { nav.navigate(Routes.circuit(r.circuitId, r.season, r.round)) }
+                            }
+                        }
+                    }
+                }
+
+                data.next?.let { next ->
+                    item { NextRaceCard(next, now, extra, track, settings) { nav.navigate(Routes.circuit(next.circuitId, next.season, next.round)) } }
+                }
+
+                item { SectionTitle(stringResource(R.string.season_numbers, data.year)) }
+                item {
+                    LoadBox(leaders, onRetry = { vm.refresh() }) { l -> LeadersGrid(l) }
+                }
+
+                if (data.drivers.isNotEmpty()) item {
+                    CardBox(padding = 0.dp) {
+                        Box(Modifier.padding(start = 14.dp, end = 6.dp, top = 8.dp)) {
+                            SectionTitle(stringResource(R.string.drivers_top10), stringResource(R.string.full), onAction = { nav.goTab(Routes.STANDINGS) })
+                        }
+                        data.drivers.take(10).forEach { d ->
+                            Divider()
+                            RankRow(d.pos, teamColor(d.team?.color ?: 0xFF8A929C), d.driver.flag, d.driver.name, d.team?.name, Fmt.points(d.points))
+                        }
+                    }
+                }
+                if (data.teams.isNotEmpty()) item {
+                    CardBox(padding = 0.dp) {
+                        Box(Modifier.padding(start = 14.dp, end = 6.dp, top = 8.dp)) {
+                            SectionTitle(stringResource(R.string.constructors), stringResource(R.string.full), onAction = { nav.goTab(Routes.STANDINGS) })
+                        }
+                        data.teams.take(11).forEach { t ->
+                            Divider()
+                            RankRow(t.pos, teamColor(t.team.color), t.team.flag, t.team.name, null, Fmt.points(t.points))
+                        }
+                    }
+                }
+
+                data.last?.let { last ->
+                    item { LastRaceCard(last, data.lastResults, photos) { nav.navigate(Routes.race(last.season, last.round)) } }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LiveBanner(race: Race, kind: SessionKind, onClick: () -> Unit) {
+    val p = pal()
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.liveBg)
+            .border(1.dp, p.accent.copy(alpha = 0.5f), RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Box(Modifier.size(10.dp).clip(CircleShape).background(Color(0xFFFF3B30)))
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.live_now), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = p.accentText)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Flag(race.flag, 14.sp)
+                Text("${sessionName(kind)} · ${Fmt.raceName(race.name)}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = p.text, maxLines = 1)
+            }
+        }
+        Text(stringResource(R.string.see_timing), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = p.accentText)
+    }
+}
+
+@Composable
+private fun UpcomingCard(r: Race, isNext: Boolean, onClick: () -> Unit) {
+    val p = pal()
+    Column(
+        Modifier.width(196.dp).clip(RoundedCornerShape(14.dp)).background(p.card)
+            .border(1.dp, if (isNext) p.accent else p.divider, RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Flag(r.flag, 24.sp)
+            Muted(stringResource(R.string.round_n, r.round).uppercase(), 10.sp)
+        }
+        Text(Fmt.raceName(r.name), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = p.text, maxLines = 1)
+        Muted(r.locality, 11.sp, maxLines = 1)
+        Mono(Fmt.range(r.firstDay, r.lastDay), 12.sp, FontWeight.Bold)
+        Divider()
+        Text(
+            stringResource(R.string.s_race) + " · " + (r.raceStart?.let { Fmt.weekdayTime(it) } ?: Fmt.weekdayDayMonth(r.date)),
+            fontSize = 11.sp, color = p.muted, maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun NextRaceCard(next: Race, now: Instant, extra: Load<NextExtra>, track: TrackGeometry?, settings: AppSettings, onCircuit: () -> Unit) {
+    val p = pal()
+    CardBox(padding = 0.dp) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Flag(next.flag, 34.sp)
+            Column {
+                Text(stringResource(R.string.next_race_round, next.round).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = p.accentText)
+                Text(Fmt.raceName(next.name), fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
+                Muted("${next.circuitName} · ${next.locality}", 12.sp)
+            }
+        }
+        next.raceStart?.let { start ->
+            val d = Duration.between(now, start).coerceAtLeast(Duration.ZERO)
+            Row(
+                Modifier.padding(horizontal = 14.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(p.bg).padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Muted(stringResource(R.string.race_start), 11.sp)
+                    Mono(Fmt.weekdayTime(start), 13.sp, FontWeight.Bold)
+                    Muted(stringResource(R.string.device_time), 10.sp)
+                }
+                listOf(d.toDays() to R.string.days, d.toHours() % 24 to R.string.hours, d.toMinutes() % 60 to R.string.minutes_short).forEach { (v, label) ->
+                    Column(
+                        Modifier.padding(start = 6.dp).clip(RoundedCornerShape(8.dp)).background(p.card2).padding(horizontal = 8.dp, vertical = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Mono(String.format("%02d", v), 18.sp, FontWeight.Bold)
+                        Muted(stringResource(label), 9.sp)
+                    }
+                }
+            }
+        }
+        // sessions of the weekend in the device time zone
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            next.sessions.forEach { s ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                    Text(sessionName(s.kind), fontSize = 12.sp, color = p.text, modifier = Modifier.weight(1f), fontWeight = if (s.kind == SessionKind.RACE) FontWeight.Bold else FontWeight.Normal)
+                    Mono(Fmt.weekdayTime(s.start), 12.sp, FontWeight.Normal, p.muted)
+                }
+            }
+        }
+        val ex = extra.valueOrNull
+        val weather = ex?.weather
+        if (weather != null && weather.isNotEmpty()) {
+            Row(Modifier.padding(horizontal = 14.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                weather.takeLast(3).forEach { day -> WeatherDay(day, Modifier.weight(1f)) }
+            }
+        } else if (ex != null) {
+            Muted(stringResource(R.string.weather_soon), 11.sp, Modifier.padding(horizontal = 14.dp))
+        }
+        if (track != null) {
+            TrackMap(track, Tracks.zonesFor(track.name), Modifier.padding(top = 8.dp))
+        }
+        val h = ex?.history
+        val facts = buildList {
+            add(Triple(stringResource(R.string.length), Static.LENGTH_KM[next.circuitId]?.let { String.format("%.3f km", it) } ?: "—", ""))
+            add(Triple(stringResource(R.string.corners), (track?.corners?.size?.takeIf { it > 0 } ?: Static.TRACK_TURNS[next.circuitId])?.toString() ?: "—", ""))
+            add(Triple(stringResource(R.string.laps), h?.lastWinner?.laps?.takeIf { it > 0 }?.toString() ?: "—", ""))
+            add(Triple(stringResource(R.string.gps_held), h?.gpsHeld?.toString() ?: "—", ""))
+            add(Triple(stringResource(R.string.first_gp), h?.firstGp?.toString() ?: "—", ""))
+            if (h != null) {
+                val king = h.top(h.winners, 1).firstOrNull()
+                if (king != null) add(Triple(stringResource(R.string.most_wins_here), king.first.driver.code, king.first.driver.flag + "|" + stringResource(R.string.n_wins, king.second)))
+                val pole = h.lastPole
+                if (pole != null) add(Triple(stringResource(R.string.last_pole), pole.driver.code, pole.driver.flag + "|" + (pole.time ?: "")))
+                val win = h.lastWinner
+                if (win != null) add(Triple(stringResource(R.string.last_winner), win.driver.code, win.driver.flag + "|" + win.season))
+                val fl = h.lastFastest
+                if (fl != null) add(Triple(stringResource(R.string.fastest_lap), fl.driver.code, fl.driver.flag + "|" + (fl.time ?: "")))
+            }
+        }
+        if (extra is Load.Loading) LoadingBox()
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            facts.chunked(3).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { (label, value, sub) ->
+                        val flag = sub.substringBefore("|", "")
+                        val subText = if (sub.contains("|")) sub.substringAfter("|") else sub
+                        StatTile(label, value, Modifier.weight(1f), subText, flag, color = p.bg)
+                    }
+                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+        }
+        if (ex != null && ex.lastPodium.isNotEmpty()) {
+            Column(Modifier.padding(horizontal = 14.dp)) {
+                Muted(stringResource(R.string.last_edition_podium), 11.sp)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ex.lastPodium.forEachIndexed { i, r ->
+                        Row(
+                            Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(p.bg).padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text("${i + 1}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MEDALS[i])
+                            Flag(r.driver.flag, 12.sp)
+                            Text(r.driver.code, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = p.text)
+                        }
+                    }
+                }
+            }
+        }
+        // broadcasters for the selected country
+        val cc = settings.effectiveCountry
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Divider()
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+                Muted(stringResource(R.string.broadcast), 12.sp)
+                Flag(Flags.emoji(cc), 15.sp)
+                Muted(Static.countryName(cc), 12.sp)
+            }
+            Text((Static.BROADCAST[cc] ?: Static.FALLBACK_BROADCAST).joinToString(" · "), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Muted(stringResource(R.string.change_country_hint), 11.sp, Modifier.weight(1f))
+                Text(stringResource(R.string.view_circuit), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = p.accentText, modifier = Modifier.clickable(onClick = onCircuit).padding(8.dp))
+            }
+        }
+    }
+}
+
+private val MEDALS = listOf(Color(0xFFFFD12E), Color(0xFFC9C9D3), Color(0xFFD08A4C))
+
+@Composable
+fun WeatherDay(d: DayWeather, modifier: Modifier = Modifier) {
+    val p = pal()
+    Column(modifier.clip(RoundedCornerShape(10.dp)).background(p.bg).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(Fmt.weekdayDayMonth(d.date), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = p.muted, maxLines = 1)
+        Text(weatherEmoji(d.code), fontSize = 20.sp)
+        Mono("${d.max?.toInt() ?: "-"}° / ${d.min?.toInt() ?: "-"}°", 11.sp, FontWeight.Bold)
+        Text(stringResource(R.string.rain_pct, d.rain ?: 0), fontSize = 10.sp, color = Color(0xFF6CB6FF))
+    }
+}
+
+fun weatherEmoji(code: Int): String = when {
+    code == 0 -> "☀️"
+    code <= 2 -> "🌤️"
+    code == 3 -> "☁️"
+    code <= 48 -> "🌫️"
+    code <= 57 -> "🌦️"
+    code <= 67 -> "🌧️"
+    code <= 77 -> "🌨️"
+    code <= 82 -> "🌦️"
+    else -> "⛈️"
+}
+
+@Composable
+private fun LeadersGrid(l: SeasonLeaders) {
+    val p = pal()
+    val cards = listOf(
+        stringResource(R.string.wins) to l.wins, stringResource(R.string.poles) to l.poles,
+        stringResource(R.string.podiums) to l.podiums, stringResource(R.string.fastest_laps) to l.fastest
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        cards.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { (label, list) ->
+                    Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(p.card).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Muted(label, 11.sp)
+                        val first = list.firstOrNull()
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Flag(first?.driver?.flag ?: "", 14.sp)
+                            Text(first?.driver?.last ?: "—", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = p.text, modifier = Modifier.weight(1f).padding(start = 6.dp), maxLines = 1)
+                            Mono("${first?.count ?: 0}", 18.sp, FontWeight.Bold)
+                        }
+                        Muted(list.drop(1).joinToString(" · ") { "${it.driver.last} ${it.count}" }, 11.sp, maxLines = 1)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LastRaceCard(race: Race, results: List<ResultRow>, photos: Map<String, String>, onOpen: () -> Unit) {
+    val p = pal()
+    CardBox(padding = 0.dp, onClick = onOpen) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Flag(race.flag, 28.sp)
+            Column(Modifier.weight(1f)) {
+                Muted("${stringResource(R.string.last_race).uppercase()} · ${stringResource(R.string.round_n, race.round).uppercase()} · ${Fmt.dayMonth(race.date)}", 11.sp)
+                Text(Fmt.raceName(race.name), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = p.text)
+            }
+            Text(stringResource(R.string.details), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = p.accentText)
+        }
+        val podium = results.take(3)
+        if (podium.size == 3) {
+            Row(Modifier.padding(horizontal = 14.dp).fillMaxWidth(), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(1, 0, 2).forEach { i ->
+                    val r = podium[i]
+                    val size = listOf(78.dp, 64.dp, 58.dp)[i]
+                    val step = listOf(84.dp, 58.dp, 42.dp)[i]
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Avatar(photos[r.driver.code], r.driver.first.take(1) + r.driver.last.take(1), size, teamColor(r.team.color))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Flag(r.driver.flag, 12.sp)
+                            Text(r.driver.code, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = p.text)
+                        }
+                        Box(
+                            Modifier.fillMaxWidth().height(step).clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)).background(p.card2),
+                            contentAlignment = Alignment.TopCenter
+                        ) {
+                            Text("${i + 1}", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = MEDALS[i], modifier = Modifier.padding(top = 6.dp))
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        results.take(10).forEach { r ->
+            Divider()
+            RankRow(r.posText, teamColor(r.team.color), r.driver.flag, r.driver.name, r.team.name, resultTime(r))
+        }
+    }
+}
+
+@Composable
+fun resultTime(r: ResultRow): String = when {
+    r.time != null -> r.time
+    r.status == "Finished" -> ""
+    r.status.startsWith("+") || r.status == "Lapped" -> r.status
+    r.classified -> r.status
+    r.status.contains("start", true) -> "DNS"
+    r.status.contains("disq", true) -> "DSQ"
+    else -> "DNF"
+}

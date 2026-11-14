@@ -1,0 +1,349 @@
+package com.f1pocket.app.ui.screens
+
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.DonutLarge
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.os.LocaleListCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
+import com.f1pocket.app.R
+import com.f1pocket.app.data.AppSettings
+import com.f1pocket.app.data.Flags
+import com.f1pocket.app.data.Jolpica
+import com.f1pocket.app.data.Keys
+import com.f1pocket.app.data.Repo
+import com.f1pocket.app.data.SessionKind
+import com.f1pocket.app.data.Static
+import com.f1pocket.app.notify.Notifier
+import com.f1pocket.app.ui.BaseVM
+import com.f1pocket.app.ui.CardBox
+import com.f1pocket.app.ui.Divider
+import com.f1pocket.app.ui.LoadBox
+import com.f1pocket.app.ui.Load
+import com.f1pocket.app.ui.Muted
+import com.f1pocket.app.ui.Picker
+import com.f1pocket.app.ui.RankRow
+import com.f1pocket.app.ui.Routes
+import com.f1pocket.app.ui.ScreenHeader
+import com.f1pocket.app.ui.SectionTitle
+import com.f1pocket.app.ui.Segmented
+import com.f1pocket.app.ui.pal
+import com.f1pocket.app.ui.sessionName
+import com.f1pocket.app.ui.teamColor
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+
+// ===================== MORE =====================
+
+@Composable
+fun MoreScreen(nav: NavHostController) {
+    val items = listOf(
+        Triple(Icons.Filled.Sensors, R.string.live_title to R.string.live_sub, Routes.LIVE),
+        Triple(Icons.Filled.History, R.string.replay_title to R.string.replay_sub, Routes.REPLAY),
+        Triple(Icons.Filled.Mic, R.string.nav_radio to R.string.radio_sub, Routes.RADIO),
+        Triple(Icons.Filled.Speed, R.string.nav_telemetry to R.string.telemetry_sub, Routes.TELEMETRY),
+        Triple(Icons.Filled.DonutLarge, R.string.nav_strategy to R.string.strategy_sub, Routes.STRATEGY),
+        Triple(Icons.Filled.Calculate, R.string.nav_simulation to R.string.simulation_sub, Routes.SIMULATION),
+        Triple(Icons.Filled.SwapHoriz, R.string.nav_compare to R.string.compare_sub, Routes.COMPARE),
+        Triple(Icons.Filled.Star, R.string.nav_records to R.string.records_sub, Routes.RECORDS)
+    )
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { ScreenHeader(stringResource(R.string.nav_more)) }
+        item { Muted(stringResource(R.string.analysis).uppercase(), 12.sp) }
+        item {
+            CardBox(padding = 0.dp) {
+                items.forEachIndexed { i, (icon, texts, route) ->
+                    if (i > 0) Divider()
+                    MenuRow(icon, stringResource(texts.first), stringResource(texts.second)) { nav.navigate(route) }
+                }
+            }
+        }
+        item { Muted(stringResource(R.string.app).uppercase(), 12.sp) }
+        item {
+            CardBox(padding = 0.dp) {
+                MenuRow(Icons.Filled.Settings, stringResource(R.string.settings), stringResource(R.string.settings_sub)) { nav.navigate(Routes.SETTINGS) }
+            }
+        }
+        item { Muted(stringResource(R.string.disclaimer), 11.sp) }
+    }
+}
+
+@Composable
+private fun MenuRow(icon: ImageVector, title: String, sub: String, onClick: () -> Unit) {
+    val p = pal()
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(p.card2), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = p.accentText, modifier = Modifier.size(20.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = p.text)
+            Muted(sub, 11.sp)
+        }
+        Text("›", fontSize = 18.sp, color = p.muted)
+    }
+}
+
+// ===================== SETTINGS =====================
+
+private val LANGS = listOf(
+    "" to null, "pt-BR" to "Português", "en" to "English", "es" to "Español", "fr" to "Français", "de" to "Deutsch",
+    "it" to "Italiano", "ja" to "日本語", "zh" to "中文", "ru" to "Русский", "ar" to "العربية"
+)
+
+@Composable
+fun SettingsScreen(nav: NavHostController, s: AppSettings) {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val p = pal()
+    fun edit(block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit, reschedule: Boolean = false) {
+        scope.launch {
+            Repo.settings.edit(block)
+            if (reschedule) Notifier.rescheduleSoon(context)
+        }
+    }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        edit({ it[Keys.notifEnabled] = granted }, true)
+    }
+    var transcripts by remember { mutableStateOf(s.transcriptsUrl) }
+    var whisper by remember { mutableStateOf(s.whisperKey) }
+
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { ScreenHeader(stringResource(R.string.settings), onBack = { nav.popBackStack() }) }
+
+        item { Muted(stringResource(R.string.appearance).uppercase(), 12.sp) }
+        item {
+            CardBox {
+                Text(stringResource(R.string.theme), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = p.text)
+                Box(Modifier.padding(top = 10.dp)) {
+                    val modes = listOf("system", "dark", "light")
+                    Segmented(
+                        listOf(stringResource(R.string.theme_system), stringResource(R.string.theme_dark), stringResource(R.string.theme_light)),
+                        modes.indexOf(s.theme).coerceAtLeast(0)
+                    ) { i -> edit({ it[Keys.theme] = modes[i] }) }
+                }
+            }
+        }
+        item {
+            val current = AppCompatDelegate.getApplicationLocales().toLanguageTags()
+            val systemLabel = stringResource(R.string.lang_system)
+            CardBox {
+                Picker(stringResource(R.string.language), LANGS, LANGS.firstOrNull { it.first.equals(current, true) } ?: LANGS.first(), { it.second ?: systemLabel }, Modifier.fillMaxWidth()) { (tag, _) ->
+                    AppCompatDelegate.setApplicationLocales(if (tag.isEmpty()) LocaleListCompat.getEmptyLocaleList() else LocaleListCompat.forLanguageTags(tag))
+                }
+                Box(Modifier.padding(top = 10.dp)) {
+                    val countries = (Static.BROADCAST.keys + s.effectiveCountry).distinct().sortedBy { Static.countryName(it) }
+                    val auto = stringResource(R.string.auto_detect)
+                    Picker(stringResource(R.string.broadcast_country), listOf("") + countries, s.country ?: "", {
+                        if (it.isEmpty()) "$auto (${Static.countryName(Static.deviceCountry())})" else "${Flags.emoji(it)} ${Static.countryName(it)}"
+                    }, Modifier.fillMaxWidth()) { cc ->
+                        edit({ prefs ->
+                            if (cc.isEmpty()) {
+                                prefs.remove(Keys.country)
+                            } else {
+                                prefs[Keys.country] = cc
+                            }
+                            Unit
+                        })
+                    }
+                }
+                Muted(stringResource(R.string.lang_note), 11.sp, Modifier.padding(top = 8.dp))
+            }
+        }
+
+        item { Muted(stringResource(R.string.notifications).uppercase(), 12.sp) }
+        item {
+            CardBox(padding = 0.dp) {
+                ToggleRow(stringResource(R.string.notif_enable), stringResource(R.string.notif_enable_sub), s.notifEnabled) { on ->
+                    if (on && Build.VERSION.SDK_INT >= 33) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    else edit({ it[Keys.notifEnabled] = on }, true)
+                }
+                if (s.notifEnabled) {
+                    val all = SessionKind.entries.all { s.notif[it] == true }
+                    Divider()
+                    ToggleRow(stringResource(R.string.notif_all), stringResource(R.string.notif_all_sub), all) { on ->
+                        edit({ pr -> SessionKind.entries.forEach { pr[Keys.notif(it)] = on } }, true)
+                    }
+                    val fps = listOf(SessionKind.FP1, SessionKind.FP2, SessionKind.FP3)
+                    Divider()
+                    ToggleRow(stringResource(R.string.notif_practice), stringResource(R.string.notif_practice_sub), fps.all { s.notif[it] == true }) { on ->
+                        edit({ pr -> fps.forEach { pr[Keys.notif(it)] = on } }, true)
+                    }
+                    fps.forEach { k ->
+                        Divider()
+                        ToggleRow(sessionName(k), null, s.notif[k] == true, indent = true) { on -> edit({ it[Keys.notif(k)] = on }, true) }
+                    }
+                    Divider()
+                    ToggleRow(stringResource(R.string.s_sprint), stringResource(R.string.notif_sprint_sub), s.notif[SessionKind.SPRINT] == true || s.notif[SessionKind.SPRINT_QUALI] == true) { on ->
+                        edit({ it[Keys.notif(SessionKind.SPRINT)] = on; it[Keys.notif(SessionKind.SPRINT_QUALI)] = on }, true)
+                    }
+                    Divider()
+                    ToggleRow(stringResource(R.string.s_quali), null, s.notif[SessionKind.QUALI] == true) { on -> edit({ it[Keys.notif(SessionKind.QUALI)] = on }, true) }
+                    Divider()
+                    ToggleRow(stringResource(R.string.s_race), null, s.notif[SessionKind.RACE] == true) { on -> edit({ it[Keys.notif(SessionKind.RACE)] = on }, true) }
+                    Divider()
+                    Box(Modifier.padding(14.dp)) {
+                        val leads = listOf(5, 15, 30, 60)
+                        Picker(stringResource(R.string.notif_lead), leads, s.leadMinutes, { stringResource0(it) }, Modifier.fillMaxWidth()) { m ->
+                            edit({ it[Keys.lead] = m }, true)
+                        }
+                    }
+                }
+            }
+        }
+
+        item { Muted(stringResource(R.string.banner_title).uppercase(), 12.sp) }
+        item {
+            CardBox(padding = 0.dp) {
+                SessionKind.entries.forEachIndexed { i, k ->
+                    if (i > 0) Divider()
+                    ToggleRow(sessionName(k), null, s.banner[k] == true) { on -> edit({ it[Keys.banner(k)] = on }) }
+                }
+            }
+        }
+
+        item { Muted(stringResource(R.string.nav_radio).uppercase(), 12.sp) }
+        item {
+            CardBox {
+                OutlinedTextField(
+                    value = transcripts, onValueChange = { transcripts = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.transcripts_url)) }
+                )
+                Muted(stringResource(R.string.transcripts_url_note), 11.sp, Modifier.padding(top = 6.dp))
+                OutlinedTextField(
+                    value = whisper, onValueChange = { whisper = it }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                    label = { Text(stringResource(R.string.whisper_key)) }
+                )
+                Muted(stringResource(R.string.whisper_key_note), 11.sp, Modifier.padding(top = 6.dp))
+                Text(
+                    stringResource(R.string.save), color = p.accentText, fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                    modifier = Modifier.padding(top = 10.dp).clickable {
+                        edit({ it[Keys.transcripts] = transcripts.trim(); it[Keys.whisper] = whisper.trim() })
+                    }.padding(6.dp)
+                )
+            }
+        }
+    }
+}
+
+private fun stringResource0(minutes: Int): String = "$minutes min"
+
+@Composable
+private fun ToggleRow(title: String, sub: String?, checked: Boolean, indent: Boolean = false, onChange: (Boolean) -> Unit) {
+    val p = pal()
+    Row(
+        Modifier.fillMaxWidth().clickable { onChange(!checked) }.heightIn(min = 52.dp)
+            .padding(start = if (indent) 34.dp else 14.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 14.sp, fontWeight = if (indent) FontWeight.Normal else FontWeight.SemiBold, color = p.text)
+            if (sub != null) Muted(sub, 11.sp)
+        }
+        Switch(
+            checked = checked, onCheckedChange = onChange,
+            colors = SwitchDefaults.colors(checkedTrackColor = p.accent, checkedThumbColor = Color.White)
+        )
+    }
+}
+
+// ===================== RECORDS =====================
+
+class RecordsVM : BaseVM() {
+    val data = MutableStateFlow<Load<Jolpica.Records>>(Load.Loading)
+    init { refresh() }
+    fun refresh() { load(data) { Jolpica.records() } }
+}
+
+@Composable
+fun RecordsScreen(nav: NavHostController) {
+    val vm: RecordsVM = viewModel()
+    val data by vm.data.collectAsState()
+    var tab by remember { mutableStateOf(0) }
+    val p = pal()
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { ScreenHeader(stringResource(R.string.nav_records), onBack = { nav.popBackStack() }) }
+        item { Muted(stringResource(R.string.records_lead), 12.sp) }
+        item {
+            LoadBox(data, onRetry = { vm.refresh() }) { r ->
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Segmented(listOf(stringResource(R.string.drivers), stringResource(R.string.constructors), stringResource(R.string.champions)), tab) { tab = it }
+                    when (tab) {
+                        0 -> {
+                            RecordList(stringResource(R.string.most_titles)) { r.titles.forEachIndexed { i, (d, n) -> RankRow("${i + 1}", p.card2, d.flag, d.name, null, "$n") } }
+                            RecordList(stringResource(R.string.most_wins)) { r.wins.forEachIndexed { i, (d, n) -> RankRow("${i + 1}", p.card2, d.flag, d.name, null, "$n") } }
+                            RecordList(stringResource(R.string.most_pole_starts)) { r.poleStarts.forEachIndexed { i, (d, n) -> RankRow("${i + 1}", p.card2, d.flag, d.name, null, "$n") } }
+                            RecordList(stringResource(R.string.win_streaks)) { r.streaks.forEachIndexed { i, (d, n, years) -> RankRow("${i + 1}", p.card2, d.flag, d.name, years, "$n") } }
+                        }
+                        1 -> {
+                            RecordList(stringResource(R.string.most_team_titles)) { r.teamTitles.forEachIndexed { i, (t, n) -> RankRow("${i + 1}", teamColor(t.color), t.flag, t.name, null, "$n") } }
+                            RecordList(stringResource(R.string.most_team_wins)) { r.teamWins.forEachIndexed { i, (t, n) -> RankRow("${i + 1}", teamColor(t.color), t.flag, t.name, null, "$n") } }
+                        }
+                        else -> RecordList(stringResource(R.string.champions_by_season)) {
+                            r.champions.forEach { c ->
+                                RankRow("${c.year}", teamColor(c.team?.color ?: 0xFF8A929C), c.driver.flag, c.driver.name, listOfNotNull(c.team?.name, c.teamChampion?.let { "🏆 " + it.name }).joinToString(" · "), "")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecordList(title: String, content: @Composable () -> Unit) {
+    CardBox(padding = 0.dp) {
+        SectionTitle(title)
+        Box(Modifier.padding(bottom = 6.dp)) { Column { content() } }
+    }
+}
