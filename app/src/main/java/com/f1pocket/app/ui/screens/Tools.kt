@@ -305,6 +305,8 @@ class TelemetryVM : BaseVM() {
     val a = MutableStateFlow<TI.Driver?>(null)
     val b = MutableStateFlow<TI.Driver?>(null)
     val data = MutableStateFlow<Load<TelData>?>(null)
+    /** Folder name the dataset uses for the selected race (may differ from Jolpica's name). */
+    private var tiName = ""
 
     init { selectYear(years.first()) }
 
@@ -324,7 +326,8 @@ class TelemetryVM : BaseVM() {
     private fun loadDrivers() {
         val r = race.value ?: return
         data.value = null
-        load(drivers) { TI.drivers(r.season, r.name, session.value) }.invokeOnCompletion {
+        tiName = ""
+        load(drivers) { TI.withEvent(r.name, r.season) { n -> TI.drivers(r.season, n, session.value).also { tiName = n } } }.invokeOnCompletion {
             val list = drivers.value.valueOrNull ?: return@invokeOnCompletion
             a.value = list.getOrNull(0); b.value = list.getOrNull(1)
         }
@@ -334,16 +337,17 @@ class TelemetryVM : BaseVM() {
         val r = race.value ?: return
         val da = a.value ?: return
         val db = b.value ?: return
+        val ev = tiName.ifEmpty { r.name }
         data.value = Load.Loading
         viewModelScope.launch {
             data.value = try {
                 coroutineScope {
-                    val la = async { TI.laps(r.season, r.name, session.value, da.code).filter { !it.deleted }.minByOrNull { it.time } }
-                    val lb = async { TI.laps(r.season, r.name, session.value, db.code).filter { !it.deleted }.minByOrNull { it.time } }
+                    val la = async { TI.laps(r.season, ev, session.value, da.code).filter { !it.deleted }.minByOrNull { it.time } }
+                    val lb = async { TI.laps(r.season, ev, session.value, db.code).filter { !it.deleted }.minByOrNull { it.time } }
                     val lapA = la.await() ?: throw IllegalStateException("no lap")
                     val lapB = lb.await() ?: throw IllegalStateException("no lap")
-                    val ta = async { TI.tel(r.season, r.name, session.value, da.code, lapA.lap) }
-                    val tb = async { TI.tel(r.season, r.name, session.value, db.code, lapB.lap) }
+                    val ta = async { TI.tel(r.season, ev, session.value, da.code, lapA.lap) }
+                    val tb = async { TI.tel(r.season, ev, session.value, db.code, lapB.lap) }
                     Load.Ok(TelData(ta.await(), tb.await(), lapA, lapB, da.code, db.code, hexColor(da.color), hexColor(db.color).let { if (da.color == db.color) Color(0xFFFFFFFF) else it }))
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {

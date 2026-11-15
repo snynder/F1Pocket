@@ -16,6 +16,37 @@ import java.net.URLEncoder
 object TI {
     val SESSIONS = listOf("Qualifying", "Race", "Sprint", "Sprint Qualifying", "Practice 1", "Practice 2", "Practice 3")
 
+    /**
+     * Folder names the dataset may use for an event. Jolpica and the dataset sometimes disagree:
+     * Brazil is "São Paulo Grand Prix" there, and in 2026 the Sepang (Malaysia) round is filed as "Bahrain Grand Prix".
+     */
+    fun candidates(event: String, year: Int): List<String> {
+        val extra = when {
+            event.contains("Brazil", true) -> listOf("São Paulo Grand Prix")
+            event.contains("Paulo", true) -> listOf("Brazilian Grand Prix")
+            event.contains("Malaysia", true) && year == 2026 -> listOf("Bahrain Grand Prix")
+            event == "Mexican Grand Prix" -> listOf("Mexico City Grand Prix")
+            event == "Mexico City Grand Prix" -> listOf("Mexican Grand Prix")
+            else -> emptyList()
+        }
+        return (listOf(event) + extra).distinct()
+    }
+
+    /** Runs [block] with the first folder name that works for this event. */
+    suspend fun <T> withEvent(event: String, year: Int, block: suspend (String) -> T): T {
+        var last: Exception? = null
+        for (name in candidates(event, year)) {
+            try {
+                return block(name)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                last = e
+            }
+        }
+        throw last ?: IllegalStateException("no data")
+    }
+
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
     fun base(year: Int, event: String, session: String) =
         "https://raw.githubusercontent.com/TracingInsights/$year/main/${enc(event)}/${enc(session)}"

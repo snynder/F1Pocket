@@ -1,5 +1,7 @@
 package com.f1pocket.app.ui.screens
 
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -301,7 +304,7 @@ fun CircuitsScreen(nav: NavHostController) {
                                     if (g != null) TrackMap(g, null, Modifier.padding(4.dp), compact = true) else Flag(r.flag, 40.sp)
                                 }
                                 Column(Modifier.padding(10.dp)) {
-                                    Text(r.circuitName, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = p.text, maxLines = 1)
+                                    Text(r.circuitName, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = p.text, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                                         Flag(r.flag, 12.sp)
                                         Muted(r.country, 11.sp, maxLines = 1)
@@ -429,20 +432,20 @@ fun CircuitScreen(nav: NavHostController, id: String, year: Int?, round: Int?) {
                         Triple(stringResource(R.string.laps), h.lastWinner?.laps?.takeIf { it > 0 }?.toString() ?: "—", ""),
                         Triple(stringResource(R.string.first_gp), h.firstGp?.toString() ?: "—", ""),
                         Triple(stringResource(R.string.gps_held), h.gpsHeld.toString(), ""),
-                        Triple(stringResource(R.string.last_winner), h.lastWinner?.driver?.code ?: "—", h.lastWinner?.season?.toString() ?: "")
+                        Triple(stringResource(R.string.last_winner), h.lastWinner?.let { "${it.driver.code} (${it.season})" } ?: "—", "")
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         tiles.chunked(3).forEach { row ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                row.forEach { (l, v, s) -> StatTile(l, v, Modifier.weight(1f), s) }
+                            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                row.forEach { (l, v, s) -> StatTile(l, v, Modifier.weight(1f).fillMaxHeight(), s) }
                             }
                         }
                     }
                 }
                 item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        RecordTile(stringResource(R.string.record_quali), h.qualiRecord, Modifier.weight(1f))
-                        RecordTile(stringResource(R.string.record_race), h.raceRecord, Modifier.weight(1f))
+                    Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        RecordTile(stringResource(R.string.record_quali), h.qualiRecord, Modifier.weight(1f).fillMaxHeight())
+                        RecordTile(stringResource(R.string.record_race), h.raceRecord, Modifier.weight(1f).fillMaxHeight())
                     }
                 }
                 Static.DEMANDS[id]?.let { dem -> item { DemandsCard(dem) } }
@@ -462,7 +465,8 @@ private fun RecordTile(label: String, e: HistEntry?, modifier: Modifier) {
         Mono(e?.time ?: "—", 18.sp, FontWeight.Bold, p.purple)
         if (e != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             Flag(e.driver.flag, 12.sp)
-            Text("${e.driver.name} · ${e.season}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = p.text, maxLines = 1)
+            Text(e.driver.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = p.text, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            Text("(${e.season})", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = p.text, maxLines = 1, softWrap = false)
         }
     }
 }

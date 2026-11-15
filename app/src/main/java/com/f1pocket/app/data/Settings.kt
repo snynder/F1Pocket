@@ -18,7 +18,7 @@ data class AppSettings(
     val theme: String = "system",
     val country: String? = null,
     val notifEnabled: Boolean = false,
-    val notif: Map<SessionKind, Boolean> = SessionKind.entries.associateWith { it == SessionKind.QUALI || it == SessionKind.RACE || it == SessionKind.SPRINT },
+    val notif: Map<SessionKind, Boolean> = SessionKind.entries.associateWith { it == SessionKind.QUALI || it == SessionKind.RACE || it == SessionKind.SPRINT || it == SessionKind.SPRINT_QUALI },
     val leadMinutes: Int = 15,
     val banner: Map<SessionKind, Boolean> = SessionKind.entries.associateWith { true },
     val transcriptsUrl: String = "",

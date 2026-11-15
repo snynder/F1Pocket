@@ -279,4 +279,6 @@
     <string name="update_failed">Could not check. The repository must be public and have at least one release.</string>
     <string name="update_repo">GitHub repository (owner/repo)</string>
     <string name="update_repo_note">Filled in automatically by the GitHub build. Change only if you move the project.</string>
+    <string name="notif_sprint_quali_sub">Sprint weekends only</string>
+    <string name="notif_sprint_race_sub">The Saturday sprint race</string>
 </resources>

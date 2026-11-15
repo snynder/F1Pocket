@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
@@ -121,7 +123,9 @@ fun TrackMap(geo: TrackGeometry, zones: TrackZones?, modifier: Modifier = Modifi
     val tm = rememberTextMeasurer()
     val p = pal()
     val ratio = (layout.w / layout.h).coerceIn(0.7f, 2.2f)
-    Canvas(modifier.fillMaxWidth().aspectRatio(ratio)) {
+    // compact (grid cells with a fixed height): fill the cell and fit inside it; otherwise keep the track's proportions
+    val sized = if (compact) modifier.fillMaxSize() else modifier.fillMaxWidth().aspectRatio(ratio)
+    Canvas(sized.clipToBounds()) {
         val pad = (if (compact) 10.dp else 26.dp).toPx()
         val s = min((size.width - 2 * pad) / layout.w, (size.height - 2 * pad) / layout.h)
         val ox = (size.width - layout.w * s) / 2 - layout.minX * s
@@ -203,6 +207,8 @@ fun TrackLegend(hasZones: Boolean, exact: Boolean) {
                 Box(Modifier.size(10.dp).clip(CircleShape).background(OVERTAKE))
                 Text(stringResource(R.string.overtake_detection), fontSize = 11.sp, color = p.muted)
             }
+        }
+        if (hasZones) Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box(Modifier.size(10.dp).border(2.dp, OVERTAKE, CircleShape))
                 Text(stringResource(R.string.overtake_activation), fontSize = 11.sp, color = p.muted)

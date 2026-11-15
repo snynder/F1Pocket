@@ -69,7 +69,7 @@ object Tracks {
         var lastError: Exception? = null
         for (y in year downTo year - 2) {
             try {
-                val g = build(event, y)
+                val g = TI.withEvent(event, y) { build(it, y) }
                 if (g.exactSectors || y == year - 2) {
                     file(event).writeText(encode(g))
                     mem[event] = g

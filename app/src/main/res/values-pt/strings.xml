@@ -278,4 +278,6 @@
     <string name="update_failed">Não foi possível verificar. O repositório precisa ser público e ter pelo menos um release.</string>
     <string name="update_repo">Repositório do GitHub (usuario/repo)</string>
     <string name="update_repo_note">Preenchido automaticamente pelo build do GitHub. Só mude se trocar o projeto de lugar.</string>
+    <string name="notif_sprint_quali_sub">Só em fins de semana com sprint</string>
+    <string name="notif_sprint_race_sub">A corrida sprint de sábado</string>
 </resources>

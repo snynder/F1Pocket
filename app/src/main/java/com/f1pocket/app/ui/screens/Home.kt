@@ -1,5 +1,7 @@
 package com.f1pocket.app.ui.screens
 
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -511,11 +513,11 @@ private fun NextRaceCard(
         if (extra is Load.Loading) LoadingBox()
         Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             facts.chunked(3).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     row.forEach { (label, value, sub) ->
                         val flag = sub.substringBefore("|", "")
                         val subText = if (sub.contains("|")) sub.substringAfter("|") else sub
-                        StatTile(label, value, Modifier.weight(1f), subText, flag, color = p.bg)
+                        StatTile(label, value, Modifier.weight(1f).fillMaxHeight(), subText, flag, color = p.bg)
                     }
                     repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                 }

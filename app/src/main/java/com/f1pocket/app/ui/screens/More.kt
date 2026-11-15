@@ -231,8 +231,12 @@ fun SettingsScreen(nav: NavHostController, s: AppSettings) {
                         ToggleRow(sessionName(k), null, s.notif[k] == true, indent = true) { on -> edit({ it[Keys.notif(k)] = on }, true) }
                     }
                     Divider()
-                    ToggleRow(stringResource(R.string.s_sprint), stringResource(R.string.notif_sprint_sub), s.notif[SessionKind.SPRINT] == true || s.notif[SessionKind.SPRINT_QUALI] == true) { on ->
-                        edit({ it[Keys.notif(SessionKind.SPRINT)] = on; it[Keys.notif(SessionKind.SPRINT_QUALI)] = on }, true)
+                    ToggleRow(stringResource(R.string.s_sprint_quali), stringResource(R.string.notif_sprint_quali_sub), s.notif[SessionKind.SPRINT_QUALI] == true) { on ->
+                        edit({ it[Keys.notif(SessionKind.SPRINT_QUALI)] = on }, true)
+                    }
+                    Divider()
+                    ToggleRow(stringResource(R.string.s_sprint), stringResource(R.string.notif_sprint_race_sub), s.notif[SessionKind.SPRINT] == true) { on ->
+                        edit({ it[Keys.notif(SessionKind.SPRINT)] = on }, true)
                     }
                     Divider()
                     ToggleRow(stringResource(R.string.s_quali), null, s.notif[SessionKind.QUALI] == true) { on -> edit({ it[Keys.notif(SessionKind.QUALI)] = on }, true) }
