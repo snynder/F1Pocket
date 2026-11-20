@@ -68,6 +68,7 @@ class LiveTimingClient(private val scope: CoroutineScope) {
     fun connect() {
         if (_status.value is Status.Connecting || _status.value is Status.Connected) return
         closedByUser = false
+        attempts = 0
         jobs += scope.launch { open() }
         jobs += scope.launch {
             while (isActive) {
@@ -92,7 +93,10 @@ class LiveTimingClient(private val scope: CoroutineScope) {
         _status.value = Status.Idle
     }
 
-    private suspend fun negotiate(): String? = withContext(Dispatchers.IO) {
+    /** Connection token plus the load balancer cookies (AWSALB). */
+    private data class Negotiated(val id: String?, val cookie: String?)
+
+    private suspend fun negotiate(): Negotiated? = withContext(Dispatchers.IO) {
         runCatching {
             val req = Request.Builder()
                 .url("https://livetiming.formula1.com/signalrcore/negotiate?negotiateVersion=1")
@@ -102,23 +106,47 @@ class LiveTimingClient(private val scope: CoroutineScope) {
             Http.client.newCall(req).execute().use { r ->
                 if (!r.isSuccessful) return@use null
                 val j = Http.json.parseToJsonElement(r.body?.string() ?: "{}")
-                j.child("connectionToken").str() ?: j.child("connectionId").str()
+                val cookie = r.headers("Set-Cookie").map { it.substringBefore(';') }.filter { it.isNotBlank() }
+                Negotiated(
+                    j.child("connectionToken").str() ?: j.child("connectionId").str(),
+                    cookie.joinToString("; ").ifBlank { null }
+                )
             }
         }.getOrNull()
+    }
+
+    /** Failed attempts in a row before the first frame arrives; reset once connected. */
+    @Volatile private var attempts = 0
+
+    private fun failOrRetry(reason: String) {
+        if (closedByUser) return
+        attempts++
+        if (attempts < 4) {
+            _status.value = Status.Connecting
+            jobs += scope.launch { delay(2000L * attempts); if (!closedByUser) open() }
+        } else {
+            _status.value = Status.Failed(reason)
+        }
     }
 
     private suspend fun open() {
         _status.value = Status.Connecting
         opened = false
-        val id = negotiate()
-        val url = "wss://livetiming.formula1.com/signalrcore" + (id?.let { "?id=" + java.net.URLEncoder.encode(it, "UTF-8") } ?: "")
-        val req = Request.Builder().url(url).header("User-Agent", Http.UA).build()
-        ws = Http.client.newWebSocket(req, listener)
+        val n = negotiate()
+        val url = "wss://livetiming.formula1.com/signalrcore" + (n?.id?.let { "?id=" + java.net.URLEncoder.encode(it, "UTF-8") } ?: "")
+        // The feed sits behind an AWS load balancer: without its sticky cookie the socket can land on
+        // a server that does not know the connection token and gets a 404.
+        val req = Request.Builder().url(url).header("User-Agent", Http.UA)
+            .apply { n?.cookie?.let { header("Cookie", it) } }
+            .build()
+        val socket = Http.client.newWebSocket(req, listener)
+        ws = socket
         jobs += scope.launch {
             delay(12_000)
-            if (!opened && !closedByUser) {
-                ws?.cancel()
-                _status.value = Status.Failed("timeout")
+            if (!opened && !closedByUser && ws === socket) {
+                ws = null // so the onFailure from cancel() below is ignored
+                socket.cancel()
+                failOrRetry("timeout")
             }
         }
     }
@@ -157,6 +185,7 @@ class LiveTimingClient(private val scope: CoroutineScope) {
                             return
                         }
                         opened = true
+                        attempts = 0
                         synchronized(lock) {
                             topics.clear()
                             m["result"].fields().forEach { (k, v) -> topics[k] = v }
@@ -185,9 +214,9 @@ class LiveTimingClient(private val scope: CoroutineScope) {
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-            if (closedByUser) return
+            if (closedByUser || webSocket !== ws) return
             if (!opened) {
-                _status.value = Status.Failed(t.message ?: "ws")
+                failOrRetry(response?.code?.let { "HTTP $it" } ?: t.message ?: "ws")
             } else {
                 scope.launch { delay(3000); if (!closedByUser) open() }
             }
