@@ -24,16 +24,23 @@ import com.f1pocket.app.data.live.TowerRow
 @Composable
 fun TowerHeader() {
     val m = pal().muted
+    // one line per label, never wrapped: narrow columns would otherwise break words into pieces
+    @Composable
+    fun H(text: String, mod: Modifier, align: TextAlign) =
+        Text(text, fontSize = 10.sp, color = m, modifier = mod, textAlign = align, maxLines = 1, softWrap = false)
     Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(stringResource(R.string.pos_short), fontSize = 10.sp, color = m, modifier = Modifier.width(22.dp), textAlign = TextAlign.End)
+        H(stringResource(R.string.pos_short), Modifier.width(22.dp), TextAlign.End)
         Box(Modifier.width(13.dp))
-        Text(stringResource(R.string.driver), fontSize = 10.sp, color = m, modifier = Modifier.width(54.dp))
-        Text(stringResource(R.string.gap_interval), fontSize = 10.sp, color = m, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-        Text(stringResource(R.string.last_best), fontSize = 10.sp, color = m, modifier = Modifier.width(84.dp), textAlign = TextAlign.End)
-        Text(stringResource(R.string.tyre), fontSize = 10.sp, color = m, modifier = Modifier.width(48.dp), textAlign = TextAlign.Center)
-        Text(stringResource(R.string.stops_short), fontSize = 10.sp, color = m, modifier = Modifier.width(18.dp), textAlign = TextAlign.End)
+        H(stringResource(R.string.driver), Modifier.width(54.dp), TextAlign.Start)
+        H(stringResource(R.string.gap_interval), Modifier.weight(1f), TextAlign.End)
+        H(stringResource(R.string.last_best), Modifier.width(84.dp), TextAlign.End)
+        H(stringResource(R.string.tyre), Modifier.width(TYRE_W).padding(start = 8.dp), TextAlign.Start)
+        H(stringResource(R.string.stops_short), Modifier.width(STOPS_W), TextAlign.End)
     }
 }
+
+private val TYRE_W = 46.dp
+private val STOPS_W = 24.dp
 
 @Composable
 fun TowerLine(r: TowerRow) {
@@ -59,8 +66,8 @@ fun TowerLine(r: TowerRow) {
             Mono(r.last.ifBlank { "—" }, 12.sp, FontWeight.Normal, if (r.lastPersonalBest) p.green else p.text)
             Mono(r.best.ifBlank { "—" }, 10.sp, FontWeight.Normal, if (r.bestOverall) p.purple else p.muted)
         }
-        Box(Modifier.width(48.dp), contentAlignment = Alignment.Center) { TyreBadge(r.compound, r.tyreAge) }
-        Text(r.stops?.toString() ?: "", fontSize = 12.sp, color = p.text, modifier = Modifier.width(18.dp), textAlign = TextAlign.End)
+        Box(Modifier.width(TYRE_W).padding(start = 8.dp), contentAlignment = Alignment.CenterStart) { TyreBadge(r.compound, r.tyreAge, fixed = true) }
+        Text(r.stops?.toString() ?: "", fontSize = 12.sp, color = p.text, modifier = Modifier.width(STOPS_W), textAlign = TextAlign.End)
     }
 }
 

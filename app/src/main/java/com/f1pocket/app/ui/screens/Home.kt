@@ -30,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import com.f1pocket.app.ui.PullRefresh
 import com.f1pocket.app.ui.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -106,6 +107,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import androidx.compose.ui.text.style.TextDecoration
 import java.time.Duration
 import java.time.Instant
 import java.time.Year
@@ -282,85 +284,92 @@ fun HomeScreen(nav: NavHostController, settings: AppSettings) {
         onDispose { lifecycle.removeObserver(obs) }
     }
 
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    buildAnnotatedString {
-                        withStyle(SpanStyle(color = p.accent)) { append("F1") }
-                        append("Pocket")
-                    },
-                    fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = p.text, modifier = Modifier.weight(1f)
-                )
-                IconButton(onClick = { nav.navigate(Routes.SETTINGS) }) {
-                    Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.settings), tint = p.muted)
+    PullRefresh(vm, { vm.refresh() }) {
+        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        buildAnnotatedString {
+                            withStyle(SpanStyle(color = p.accent)) { append("F1") }
+                            append("Pocket")
+                        },
+                        fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = p.text, modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { nav.navigate(Routes.SETTINGS) }) {
+                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.settings), tint = p.muted)
+                    }
                 }
             }
-        }
-        if (update is Updater.State.Available || update is Updater.State.Downloading || update is Updater.State.Ready) {
-            item { CardBox(color = pal().liveBg) { UpdateBox(settings, showUpToDate = false) } }
-        }
-        when (val c = core) {
-            is Load.Loading -> item { LoadingBox() }
-            is Load.Err -> item { ErrorBox(c.error) { vm.refresh() } }
-            is Load.Ok -> {
-                val data = c.value
-                val live = liveSession(data.races, settings, now)
-                if (live != null) item { LiveBanner(live.first, live.second, dot) { nav.navigate(Routes.LIVE) } }
+            if (update is Updater.State.Available || update is Updater.State.Downloading || update is Updater.State.Ready) {
+                item { CardBox(color = pal().liveBg) { UpdateBox(settings, showUpToDate = false) } }
+            }
+            when (val c = core) {
+                is Load.Loading -> item { LoadingBox() }
+                is Load.Err -> item { ErrorBox(c.error) { vm.refresh() } }
+                is Load.Ok -> {
+                    val data = c.value
+                    val live = liveSession(data.races, settings, now)
+                    if (live != null) {
+                        // past its start and no longer running: the session is over
+                        val start = live.first.sessions.firstOrNull { it.kind == live.second }?.start
+                        val over = dot == null && start != null && now.isAfter(start)
+                        item { LiveBanner(live.first, live.second, dot, over) { nav.navigate(Routes.LIVE) } }
+                    }
 
-                val upcoming = data.races.filter { !it.isFinished(now) }.take(8)
-                if (upcoming.isNotEmpty()) {
-                    item { SectionTitle(stringResource(R.string.upcoming), stringResource(R.string.calendar), onAction = { nav.goTab(Routes.SEASON) }) }
-                    item {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            items(upcoming, key = { "${it.season}-${it.round}" }) { r ->
-                                UpcomingCard(r, r == data.next) { nav.navigate(Routes.circuit(r.circuitId, r.season, r.round)) }
+                    val upcoming = data.races.filter { !it.isFinished(now) }.take(8)
+                    if (upcoming.isNotEmpty()) {
+                        item { SectionTitle(stringResource(R.string.upcoming), stringResource(R.string.calendar), onAction = { nav.goTab(Routes.SEASON) }) }
+                        item {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                items(upcoming, key = { "${it.season}-${it.round}" }) { r ->
+                                    UpcomingCard(r, r == data.next) { nav.navigate(Routes.circuit(r.circuitId, r.season, r.round)) }
+                                }
                             }
                         }
                     }
-                }
 
-                data.next?.let { next ->
-                    val curKind = current?.takeIf { it.first.season == next.season && it.first.round == next.round }?.second?.kind
-                    item { NextRaceCard(next, now, extra, track, settings, curKind, dot) { nav.navigate(Routes.circuit(next.circuitId, next.season, next.round)) } }
-                }
-
-                data.last?.let { last ->
-                    item { LastRaceCard(last, data.lastResults, photos) { nav.navigate(Routes.race(last.season, last.round)) } }
-                }
-
-                item { SectionTitle(stringResource(R.string.season_numbers, data.year)) }
-                item {
-                    LoadBox(leaders, onRetry = { vm.refresh() }) { l -> LeadersGrid(l) }
-                }
-
-                if (data.drivers.isNotEmpty()) item {
-                    CardBox(padding = 0.dp) {
-                        Box(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) { SectionTitle(stringResource(R.string.drivers_top10)) }
-                        data.drivers.take(10).forEach { d ->
-                            Divider()
-                            RankRow(
-                                d.pos, teamColor(d.team?.color ?: 0xFF8A929C), d.driver.flag, d.driver.name, d.team?.name, Fmt.points(d.points),
-                                delta = posDelta(d.pos, data.prevDrivers[d.driver.id]), showDelta = data.prevDrivers.isNotEmpty()
-                            )
-                        }
-                        SeeAllFooter(stringResource(R.string.see_full_drivers)) { nav.goTab(Routes.STANDINGS) }
+                    data.next?.let { next ->
+                        val curKind = current?.takeIf { it.first.season == next.season && it.first.round == next.round }?.second?.kind
+                        item { NextRaceCard(next, now, extra, track, settings, curKind, dot) { nav.navigate(Routes.circuit(next.circuitId, next.season, next.round)) } }
                     }
-                }
-                if (data.teams.isNotEmpty()) item {
-                    CardBox(padding = 0.dp) {
-                        Box(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) { SectionTitle(stringResource(R.string.constructors)) }
-                        data.teams.take(11).forEach { t ->
-                            Divider()
-                            RankRow(
-                                t.pos, teamColor(t.team.color), t.team.flag, t.team.name, null, Fmt.points(t.points),
-                                delta = posDelta(t.pos, data.prevTeams[t.team.id]), showDelta = data.prevTeams.isNotEmpty()
-                            )
-                        }
-                        SeeAllFooter(stringResource(R.string.see_full_teams)) { nav.goTab(Routes.STANDINGS) }
-                    }
-                }
 
+                    data.last?.let { last ->
+                        item { LastRaceCard(last, data.lastResults, photos) { nav.navigate(Routes.race(last.season, last.round)) } }
+                    }
+
+                    item { SectionTitle(stringResource(R.string.season_numbers, data.year)) }
+                    item {
+                        LoadBox(leaders, onRetry = { vm.refresh() }) { l -> LeadersGrid(l) }
+                    }
+
+                    if (data.drivers.isNotEmpty()) item {
+                        CardBox(padding = 0.dp) {
+                            Box(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) { SectionTitle(stringResource(R.string.drivers_top10)) }
+                            data.drivers.take(10).forEach { d ->
+                                Divider()
+                                RankRow(
+                                    d.pos, teamColor(d.team?.color ?: 0xFF8A929C), d.driver.flag, d.driver.name, d.team?.name, Fmt.points(d.points),
+                                    delta = posDelta(d.pos, data.prevDrivers[d.driver.id]), showDelta = data.prevDrivers.isNotEmpty()
+                                )
+                            }
+                            SeeAllFooter(stringResource(R.string.see_full_drivers)) { nav.goTab(Routes.STANDINGS) }
+                        }
+                    }
+                    if (data.teams.isNotEmpty()) item {
+                        CardBox(padding = 0.dp) {
+                            Box(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) { SectionTitle(stringResource(R.string.constructors)) }
+                            data.teams.take(11).forEach { t ->
+                                Divider()
+                                RankRow(
+                                    t.pos, teamColor(t.team.color), t.team.flag, t.team.name, null, Fmt.points(t.points),
+                                    delta = posDelta(t.pos, data.prevTeams[t.team.id]), showDelta = data.prevTeams.isNotEmpty()
+                                )
+                            }
+                            SeeAllFooter(stringResource(R.string.see_full_teams)) { nav.goTab(Routes.STANDINGS) }
+                        }
+                    }
+
+                }
             }
         }
     }
@@ -380,22 +389,25 @@ private fun SeeAllFooter(text: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun LiveBanner(race: Race, kind: SessionKind, dot: LiveDotState?, onClick: () -> Unit) {
+private fun LiveBanner(race: Race, kind: SessionKind, dot: LiveDotState?, over: Boolean, onClick: () -> Unit) {
     val p = pal()
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.liveBg)
             .border(1.dp, p.accent.copy(alpha = 0.5f), RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        BlinkingDot(dot?.color ?: DotColor.GREEN, 11.dp)
+        if (!over) BlinkingDot(dot?.color ?: DotColor.GREEN, 11.dp)
         Column(Modifier.weight(1f)) {
             Text(
-                stringResource(R.string.live_now) + (dot?.label?.let { " · $it" } ?: ""),
-                fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = p.accentText
+                if (over) stringResource(R.string.session_finished) else stringResource(R.string.live_now) + (dot?.label?.let { " · $it" } ?: ""),
+                fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (over) p.muted else p.accentText
             )
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Flag(race.flag, 14.sp)
-                Text("${sessionName(kind)} · ${Fmt.raceName(race.name)}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = p.text, maxLines = 1)
+                Text(
+                    "${sessionName(kind)} · ${Fmt.raceName(race.name)}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                    color = if (over) p.muted else p.text, textDecoration = if (over) TextDecoration.LineThrough else null
+                )
             }
         }
         Text(stringResource(R.string.see_timing), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = p.accentText)
@@ -466,6 +478,8 @@ private fun NextRaceCard(
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             next.sessions.forEach { s ->
                 val isLive = s.kind == liveKind && dot != null
+                val done = !isLive && now.isAfter(s.end)
+                val strike = if (done) TextDecoration.LineThrough else null
                 Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (isLive) {
                         BlinkingDot(dot!!.color)
@@ -473,10 +487,10 @@ private fun NextRaceCard(
                     }
                     Text(
                         sessionName(s.kind) + (if (isLive) dot?.label?.let { " · $it" } ?: "" else ""),
-                        fontSize = 12.sp, color = p.text, modifier = Modifier.weight(1f),
+                        fontSize = 12.sp, color = if (done) p.muted else p.text, modifier = Modifier.weight(1f), textDecoration = strike,
                         fontWeight = if (s.kind == SessionKind.RACE || isLive) FontWeight.Bold else FontWeight.Normal
                     )
-                    Mono(Fmt.weekdayTime(s.start), 12.sp, FontWeight.Normal, p.muted)
+                    Mono(Fmt.weekdayTime(s.start), 12.sp, FontWeight.Normal, p.muted, decoration = strike)
                 }
             }
         }

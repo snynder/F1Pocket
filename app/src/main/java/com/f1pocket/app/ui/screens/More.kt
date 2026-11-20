@@ -33,6 +33,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
+import com.f1pocket.app.ui.PullRefresh
 import com.f1pocket.app.ui.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -216,32 +217,8 @@ fun SettingsScreen(nav: NavHostController, s: AppSettings) {
                     else edit({ it[Keys.notifEnabled] = on }, true)
                 }
                 if (s.notifEnabled) {
-                    val all = SessionKind.entries.all { s.notif[it] == true }
                     Divider()
-                    ToggleRow(stringResource(R.string.notif_all), stringResource(R.string.notif_all_sub), all) { on ->
-                        edit({ pr -> SessionKind.entries.forEach { pr[Keys.notif(it)] = on } }, true)
-                    }
-                    val fps = listOf(SessionKind.FP1, SessionKind.FP2, SessionKind.FP3)
-                    Divider()
-                    ToggleRow(stringResource(R.string.notif_practice), stringResource(R.string.notif_practice_sub), fps.all { s.notif[it] == true }) { on ->
-                        edit({ pr -> fps.forEach { pr[Keys.notif(it)] = on } }, true)
-                    }
-                    fps.forEach { k ->
-                        Divider()
-                        ToggleRow(sessionName(k), null, s.notif[k] == true, indent = true) { on -> edit({ it[Keys.notif(k)] = on }, true) }
-                    }
-                    Divider()
-                    ToggleRow(stringResource(R.string.s_sprint_quali), stringResource(R.string.notif_sprint_quali_sub), s.notif[SessionKind.SPRINT_QUALI] == true) { on ->
-                        edit({ it[Keys.notif(SessionKind.SPRINT_QUALI)] = on }, true)
-                    }
-                    Divider()
-                    ToggleRow(stringResource(R.string.s_sprint), stringResource(R.string.notif_sprint_race_sub), s.notif[SessionKind.SPRINT] == true) { on ->
-                        edit({ it[Keys.notif(SessionKind.SPRINT)] = on }, true)
-                    }
-                    Divider()
-                    ToggleRow(stringResource(R.string.s_quali), null, s.notif[SessionKind.QUALI] == true) { on -> edit({ it[Keys.notif(SessionKind.QUALI)] = on }, true) }
-                    Divider()
-                    ToggleRow(stringResource(R.string.s_race), null, s.notif[SessionKind.RACE] == true) { on -> edit({ it[Keys.notif(SessionKind.RACE)] = on }, true) }
+                    SessionLevels(s.notif, Keys::notif) { b -> edit(b, true) }
                     Divider()
                     Box(Modifier.padding(14.dp)) {
                         val leads = listOf(5, 15, 30, 60)
@@ -256,10 +233,7 @@ fun SettingsScreen(nav: NavHostController, s: AppSettings) {
         item { Muted(stringResource(R.string.banner_title).uppercase(), 12.sp) }
         item {
             CardBox(padding = 0.dp) {
-                SessionKind.entries.forEachIndexed { i, k ->
-                    if (i > 0) Divider()
-                    ToggleRow(sessionName(k), null, s.banner[k] == true) { on -> edit({ it[Keys.banner(k)] = on }) }
-                }
+                SessionLevels(s.banner, Keys::banner) { b -> edit(b) }
             }
         }
 
@@ -374,6 +348,33 @@ fun UpdateBox(s: AppSettings, showUpToDate: Boolean) {
 
 private fun stringResource0(minutes: Int): String = "$minutes min"
 
+/** All sessions › free practice (with FP1–FP3 inside) › sprint quali › sprint › quali › race. Shared by alerts and the live banner. */
+@Composable
+private fun SessionLevels(
+    values: Map<SessionKind, Boolean>,
+    key: (SessionKind) -> androidx.datastore.preferences.core.Preferences.Key<Boolean>,
+    edit: ((androidx.datastore.preferences.core.MutablePreferences) -> Unit) -> Unit
+) {
+    fun set(kinds: List<SessionKind>, on: Boolean) = edit { pr -> kinds.forEach { pr[key(it)] = on } }
+    val all = SessionKind.entries
+    ToggleRow(stringResource(R.string.notif_all), stringResource(R.string.notif_all_sub), all.all { values[it] == true }) { on -> set(all, on) }
+    val fps = listOf(SessionKind.FP1, SessionKind.FP2, SessionKind.FP3)
+    Divider()
+    ToggleRow(stringResource(R.string.notif_practice), stringResource(R.string.notif_practice_sub), fps.all { values[it] == true }) { on -> set(fps, on) }
+    fps.forEach { k ->
+        Divider()
+        ToggleRow(sessionName(k), null, values[k] == true, indent = true) { on -> set(listOf(k), on) }
+    }
+    Divider()
+    ToggleRow(stringResource(R.string.s_sprint_quali), stringResource(R.string.notif_sprint_quali_sub), values[SessionKind.SPRINT_QUALI] == true) { on -> set(listOf(SessionKind.SPRINT_QUALI), on) }
+    Divider()
+    ToggleRow(stringResource(R.string.s_sprint), stringResource(R.string.notif_sprint_race_sub), values[SessionKind.SPRINT] == true) { on -> set(listOf(SessionKind.SPRINT), on) }
+    Divider()
+    ToggleRow(stringResource(R.string.s_quali), null, values[SessionKind.QUALI] == true) { on -> set(listOf(SessionKind.QUALI), on) }
+    Divider()
+    ToggleRow(stringResource(R.string.s_race), null, values[SessionKind.RACE] == true) { on -> set(listOf(SessionKind.RACE), on) }
+}
+
 @Composable
 private fun ToggleRow(title: String, sub: String?, checked: Boolean, indent: Boolean = false, onChange: (Boolean) -> Unit) {
     val p = pal()
@@ -407,27 +408,29 @@ fun RecordsScreen(nav: NavHostController) {
     val data by vm.data.collectAsState()
     var tab by remember { mutableStateOf(0) }
     val p = pal()
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { ScreenHeader(stringResource(R.string.nav_records), onBack = { nav.popBackStack() }) }
-        item { Muted(stringResource(R.string.records_lead), 12.sp) }
-        item {
-            LoadBox(data, onRetry = { vm.refresh() }) { r ->
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Segmented(listOf(stringResource(R.string.drivers), stringResource(R.string.constructors), stringResource(R.string.champions)), tab) { tab = it }
-                    when (tab) {
-                        0 -> {
-                            RecordList(stringResource(R.string.most_titles)) { r.titles.forEachIndexed { i, (d, n) -> RankRow("${i + 1}", p.card2, d.flag, d.name, null, "$n") } }
-                            RecordList(stringResource(R.string.most_wins)) { r.wins.forEachIndexed { i, (d, n) -> RankRow("${i + 1}", p.card2, d.flag, d.name, null, "$n") } }
-                            RecordList(stringResource(R.string.most_pole_starts)) { r.poleStarts.forEachIndexed { i, (d, n) -> RankRow("${i + 1}", p.card2, d.flag, d.name, null, "$n") } }
-                            RecordList(stringResource(R.string.win_streaks)) { r.streaks.forEachIndexed { i, (d, n, years) -> RankRow("${i + 1}", p.card2, d.flag, d.name, years, "$n") } }
-                        }
-                        1 -> {
-                            RecordList(stringResource(R.string.most_team_titles)) { r.teamTitles.forEachIndexed { i, (t, n) -> RankRow("${i + 1}", teamColor(t.color), t.flag, t.name, null, "$n") } }
-                            RecordList(stringResource(R.string.most_team_wins)) { r.teamWins.forEachIndexed { i, (t, n) -> RankRow("${i + 1}", teamColor(t.color), t.flag, t.name, null, "$n") } }
-                        }
-                        else -> RecordList(stringResource(R.string.champions_by_season)) {
-                            r.champions.forEach { c ->
-                                RankRow("${c.year}", teamColor(c.team?.color ?: 0xFF8A929C), c.driver.flag, c.driver.name, listOfNotNull(c.team?.name, c.teamChampion?.let { "🏆 " + it.name }).joinToString(" · "), "")
+    PullRefresh(vm, { vm.refresh() }) {
+        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item { ScreenHeader(stringResource(R.string.nav_records), onBack = { nav.popBackStack() }) }
+            item { Muted(stringResource(R.string.records_lead), 12.sp) }
+            item {
+                LoadBox(data, onRetry = { vm.refresh() }) { r ->
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Segmented(listOf(stringResource(R.string.drivers), stringResource(R.string.constructors), stringResource(R.string.champions)), tab) { tab = it }
+                        when (tab) {
+                            0 -> {
+                                RecordList(stringResource(R.string.most_titles)) { r.titles.forEachIndexed { i, (d, n) -> RankRow("${i + 1}", p.card2, d.flag, d.name, null, "$n") } }
+                                RecordList(stringResource(R.string.most_wins)) { r.wins.forEachIndexed { i, (d, n) -> RankRow("${i + 1}", p.card2, d.flag, d.name, null, "$n") } }
+                                RecordList(stringResource(R.string.most_pole_starts)) { r.poleStarts.forEachIndexed { i, (d, n) -> RankRow("${i + 1}", p.card2, d.flag, d.name, null, "$n") } }
+                                RecordList(stringResource(R.string.win_streaks)) { r.streaks.forEachIndexed { i, (d, n, years) -> RankRow("${i + 1}", p.card2, d.flag, d.name, years, "$n") } }
+                            }
+                            1 -> {
+                                RecordList(stringResource(R.string.most_team_titles)) { r.teamTitles.forEachIndexed { i, (t, n) -> RankRow("${i + 1}", teamColor(t.color), t.flag, t.name, null, "$n") } }
+                                RecordList(stringResource(R.string.most_team_wins)) { r.teamWins.forEachIndexed { i, (t, n) -> RankRow("${i + 1}", teamColor(t.color), t.flag, t.name, null, "$n") } }
+                            }
+                            else -> RecordList(stringResource(R.string.champions_by_season)) {
+                                r.champions.forEach { c ->
+                                    RankRow("${c.year}", teamColor(c.team?.color ?: 0xFF8A929C), c.driver.flag, c.driver.name, listOfNotNull(c.team?.name, c.teamChampion?.let { "🏆 " + it.name }).joinToString(" · "), "")
+                                }
                             }
                         }
                     }

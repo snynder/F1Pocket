@@ -25,9 +25,9 @@
     <string name="pos_short">POS</string>
     <string name="driver">Piloto</string>
     <string name="gap_interval">Dif / Int</string>
-    <string name="last_best">Última / Melhor</string>
+    <string name="last_best">Últ/Melhor</string>
     <string name="tyre">Pneu</string>
-    <string name="stops_short">Paradas</string>
+    <string name="stops_short">Pit</string>
     <string name="out_tag">FORA</string>
     <string name="in_pit">BOX</string>
     <string name="leader">Líder</string>

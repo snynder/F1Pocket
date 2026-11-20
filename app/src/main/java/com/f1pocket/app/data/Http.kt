@@ -2,6 +2,7 @@ package com.f1pocket.app.data
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -17,11 +18,18 @@ import java.io.File
 import java.io.IOException
 import java.time.Year
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
 
 class HttpException(val code: Int) : IOException("HTTP $code")
 
 /** OpenF1 refuses free requests from 30 min before to 30 min after a live session. */
 class LiveWindowException : IOException("live_window")
+
+/** Added to a coroutine (pull to refresh) to skip the disk cache and ask the server again. */
+class FreshFetch : AbstractCoroutineContextElement(FreshFetch) {
+    companion object Key : CoroutineContext.Key<FreshFetch>
+}
 
 object Http {
     const val UA = "F1Pocket-Android/1.0"
@@ -79,6 +87,7 @@ object Http {
     suspend fun getText(url: String): String {
         val host = url.substringAfter("://").substringBefore('/')
         val gap = spacing(host)
+        val fresh = currentCoroutineContext()[FreshFetch] != null
         var attempt = 0
         while (true) {
             if (gap > 0) lock.withLock {
@@ -87,7 +96,7 @@ object Http {
                 lastCall[host] = System.currentTimeMillis()
             }
             val (code, body) = try {
-                call(url, forceCache = false)
+                call(url, forceCache = false, forceNetwork = fresh)
             } catch (e: IOException) {
                 // offline or network error: use what is saved on the phone, however old
                 return fromCache(url) ?: throw e
@@ -105,9 +114,10 @@ object Http {
         }
     }
 
-    private suspend fun call(url: String, forceCache: Boolean): Pair<Int, String> = withContext(Dispatchers.IO) {
+    private suspend fun call(url: String, forceCache: Boolean, forceNetwork: Boolean = false): Pair<Int, String> = withContext(Dispatchers.IO) {
         val b = Request.Builder().url(url).header("User-Agent", UA)
         if (forceCache) b.cacheControl(CacheControl.FORCE_CACHE)
+        else if (forceNetwork) b.cacheControl(CacheControl.FORCE_NETWORK)
         client.newCall(b.build()).execute().use { r -> r.code to (r.body?.string() ?: "") }
     }
 

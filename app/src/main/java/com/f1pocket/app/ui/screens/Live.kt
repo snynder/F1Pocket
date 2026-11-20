@@ -22,6 +22,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import com.f1pocket.app.ui.PullRefresh
 import com.f1pocket.app.ui.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -33,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewModelScope
@@ -145,37 +147,39 @@ fun LiveScreen(nav: NavHostController, settings: AppSettings) {
     val calendar by vm.calendar.collectAsState()
     val p = pal()
 
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { ScreenHeader(stringResource(R.string.live_title), onBack = { nav.popBackStack() }) }
-        val s = status
-        when {
-            s is LiveTimingClient.Status.Failed -> item {
-                CardBox {
-                    Text(stringResource(R.string.live_feed_fail), color = p.text, fontSize = 14.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 10.dp)) {
-                        OutlinedButton(onClick = { vm.retry() }) { Text(stringResource(R.string.retry)) }
-                        OutlinedButton(onClick = { nav.navigate(Routes.REPLAY) }) { Text(stringResource(R.string.open_replay)) }
+    PullRefresh(vm, { vm.retry() }) {
+        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item { ScreenHeader(stringResource(R.string.live_title), onBack = { nav.popBackStack() }) }
+            val s = status
+            when {
+                s is LiveTimingClient.Status.Failed -> item {
+                    CardBox {
+                        Text(stringResource(R.string.live_feed_fail), color = p.text, fontSize = 14.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 10.dp)) {
+                            OutlinedButton(onClick = { vm.retry() }) { Text(stringResource(R.string.retry)) }
+                            OutlinedButton(onClick = { nav.navigate(Routes.REPLAY) }) { Text(stringResource(R.string.open_replay)) }
+                        }
                     }
                 }
-            }
-            !v.hasTiming && !waited -> item {
-                Column {
-                    LoadingBox()
-                    Muted(stringResource(R.string.live_connecting), 12.sp, Modifier.align(Alignment.CenterHorizontally))
-                }
-            }
-            !v.hasTiming -> item { NoSessionCard(calendar) { nav.navigate(Routes.REPLAY) } }
-            else -> {
-                item { LiveHeader(v) }
-                track?.let { t -> item { CardBox(padding = 8.dp) { TrackMap(t, Tracks.zonesFor(t.name)); Box(Modifier.padding(6.dp)) { TrackLegend(Tracks.zonesFor(t.name) != null, t.exactSectors) } } } }
-                item {
-                    CardBox(padding = 0.dp) {
-                        TowerHeader()
-                        v.rows.forEach { TowerLine(it) }
+                !v.hasTiming && !waited -> item {
+                    Column {
+                        LoadingBox()
+                        Muted(stringResource(R.string.live_connecting), 12.sp, Modifier.align(Alignment.CenterHorizontally))
                     }
                 }
-                item { RaceControlList(v.messages) }
-                item { OutlinedButton(onClick = { nav.navigate(Routes.REPLAY) }) { Text(stringResource(R.string.open_replay)) } }
+                !v.hasTiming -> item { NoSessionCard(calendar) { nav.navigate(Routes.REPLAY) } }
+                else -> {
+                    item { LiveHeader(v) }
+                    track?.let { t -> item { CardBox(padding = 8.dp) { TrackMap(t, Tracks.zonesFor(t.name)); Box(Modifier.padding(6.dp)) { TrackLegend(Tracks.zonesFor(t.name) != null, t.exactSectors) } } } }
+                    item {
+                        CardBox(padding = 0.dp) {
+                            TowerHeader()
+                            v.rows.forEach { TowerLine(it) }
+                        }
+                    }
+                    item { RaceControlList(v.messages) }
+                    item { OutlinedButton(onClick = { nav.navigate(Routes.REPLAY) }) { Text(stringResource(R.string.open_replay)) } }
+                }
             }
         }
     }
@@ -193,7 +197,11 @@ private fun LiveHeader(v: LiveView) {
                 modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(if (on) p.liveBg else p.card2).padding(horizontal = 8.dp, vertical = 3.dp)
             )
             Flag(Flags.ioc(v.countryCode), 14.sp)
-            Text("${Fmt.raceName(v.meeting)} · ${openF1SessionName(v.session)}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = p.text, maxLines = 2)
+            val over = v.status in listOf("Finished", "Finalised", "Ends")
+            Text(
+                "${Fmt.raceName(v.meeting)} · ${openF1SessionName(v.session)}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 2,
+                color = if (over) p.muted else p.text, textDecoration = if (over) TextDecoration.LineThrough else null
+            )
         }
         Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (v.lap != null) Mono(stringResource(R.string.lap_of, v.lap, v.totalLaps ?: 0), 13.sp, FontWeight.Bold)

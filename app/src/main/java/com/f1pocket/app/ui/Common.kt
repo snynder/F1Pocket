@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -28,7 +29,12 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,7 +48,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -52,10 +62,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import coil.compose.AsyncImage
 import com.f1pocket.app.R
+import com.f1pocket.app.data.FreshFetch
 import com.f1pocket.app.data.HttpException
 import com.f1pocket.app.data.LiveWindowException
 import com.f1pocket.app.data.SessionKind
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.joinAll
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -77,16 +91,60 @@ sealed interface Load<out T> {
 val <T> Load<T>.valueOrNull: T? get() = (this as? Load.Ok<T>)?.value
 
 abstract class BaseVM : ViewModel() {
-    protected fun <T> load(target: MutableStateFlow<Load<T>>, block: suspend () -> T): Job = viewModelScope.launch {
-        target.value = Load.Loading
-        target.value = try {
-            Load.Ok(block())
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            Load.Err(e)
+    /** True while a pull to refresh is running (drives the spinner at the top). */
+    val refreshing = MutableStateFlow(false)
+    private var pulling = false
+    private val pullJobs = mutableListOf<Job>()
+
+    protected fun <T> load(target: MutableStateFlow<Load<T>>, block: suspend () -> T): Job {
+        val pull = pulling
+        val job = viewModelScope.launch(if (pull) FreshFetch() else EmptyCoroutineContext) {
+            // on a pull, keep showing what is on screen until the new data arrives
+            if (!pull || target.value !is Load.Ok) target.value = Load.Loading
+            val r = try {
+                Load.Ok(block())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                Load.Err(e)
+            }
+            if (!(pull && r is Load.Err && target.value is Load.Ok)) target.value = r
+        }
+        if (pull) pullJobs += job
+        return job
+    }
+
+    /** Pull to refresh: runs [action], skipping the cache, and keeps the spinner until its loads finish. */
+    fun pull(action: () -> Unit) {
+        if (refreshing.value) return
+        refreshing.value = true
+        pulling = true
+        pullJobs.clear()
+        try { action() } finally { pulling = false }
+        val jobs = pullJobs.toList()
+        viewModelScope.launch {
+            if (jobs.isEmpty()) delay(700) else jobs.joinAll()
+            refreshing.value = false
         }
     }
+}
+
+/** Wraps a screen's list so that pulling it down reloads the page. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PullRefresh(vm: BaseVM, onRefresh: () -> Unit, content: @Composable () -> Unit) {
+    val refreshing by vm.refreshing.collectAsState()
+    val state = rememberPullToRefreshState()
+    val p = pal()
+    PullToRefreshBox(
+        isRefreshing = refreshing, onRefresh = { vm.pull(onRefresh) }, state = state, modifier = Modifier.fillMaxSize(),
+        indicator = {
+            PullToRefreshDefaults.Indicator(
+                state = state, isRefreshing = refreshing, modifier = Modifier.align(Alignment.TopCenter),
+                containerColor = p.card, color = p.accent
+            )
+        }
+    ) { content() }
 }
 
 @Composable
@@ -178,8 +236,8 @@ fun Muted(text: String, size: TextUnit = 12.sp, modifier: Modifier = Modifier, m
 }
 
 @Composable
-fun Mono(text: String, size: TextUnit = 13.sp, weight: FontWeight = FontWeight.SemiBold, color: Color? = null, modifier: Modifier = Modifier, align: TextAlign? = null) {
-    Text(text, fontSize = size, fontWeight = weight, fontFamily = FontFamily.Monospace, color = color ?: pal().text, modifier = modifier, textAlign = align, maxLines = 1)
+fun Mono(text: String, size: TextUnit = 13.sp, weight: FontWeight = FontWeight.SemiBold, color: Color? = null, modifier: Modifier = Modifier, align: TextAlign? = null, decoration: TextDecoration? = null) {
+    Text(text, fontSize = size, fontWeight = weight, fontFamily = FontFamily.Monospace, color = color ?: pal().text, modifier = modifier, textAlign = align, maxLines = 1, textDecoration = decoration)
 }
 
 @Composable
@@ -254,13 +312,24 @@ fun <T> Picker(label: String, options: List<T>, selected: T?, text: (T) -> Strin
 }
 
 @Composable
-fun TyreBadge(compound: String?, age: Int?) {
+fun TyreBadge(compound: String?, age: Int?, fixed: Boolean = false) {
     val (letter, color) = tyreStyle(compound)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         Box(Modifier.size(18.dp).border(2.dp, color, CircleShape), contentAlignment = Alignment.Center) {
-            Text(letter, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = pal().text)
+            // no font padding, line box trimmed: the letter sits in the optical centre of the ring
+            Text(
+                letter, fontWeight = FontWeight.ExtraBold, color = pal().text, textAlign = TextAlign.Center,
+                style = TextStyle(
+                    fontSize = 9.sp, lineHeight = 9.sp,
+                    platformStyle = PlatformTextStyle(includeFontPadding = false),
+                    lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both)
+                )
+            )
         }
-        if (age != null) Text("$age", fontSize = 10.sp, color = pal().muted)
+        // in tables the age gets a fixed slot, so the circle stays in the same place on every row
+        if (fixed) Box(Modifier.width(16.dp), contentAlignment = Alignment.CenterStart) {
+            if (age != null) Text("$age", fontSize = 10.sp, color = pal().muted, maxLines = 1)
+        } else if (age != null) Text("$age", fontSize = 10.sp, color = pal().muted)
     }
 }
 

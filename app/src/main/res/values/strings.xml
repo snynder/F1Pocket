@@ -26,9 +26,9 @@
     <string name="pos_short">POS</string>
     <string name="driver">Driver</string>
     <string name="gap_interval">Gap / Int</string>
-    <string name="last_best">Last / Best</string>
+    <string name="last_best">Last/Best</string>
     <string name="tyre">Tyre</string>
-    <string name="stops_short">Stops</string>
+    <string name="stops_short">Pit</string>
     <string name="out_tag">OUT</string>
     <string name="in_pit">PIT</string>
     <string name="leader">Leader</string>
