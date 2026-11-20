@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">F1Pocket</string>
+    <string name="app_name">RacePocket</string>
     <string name="notif_channel">Session alerts</string>
     <string name="notif_text">%1$s starts in %2$d min</string>
     <string name="s_fp1">Practice 1</string>
@@ -271,7 +271,6 @@
     <string name="update_check">Check for updates</string>
     <string name="update_checking">Checking…</string>
     <string name="update_none">You have the latest version.</string>
-    <string name="update_available">Version %1$d is available.</string>
     <string name="update_install">Update now</string>
     <string name="update_downloading">Downloading… %1$d%%</string>
     <string name="update_ready">Version %1$d downloaded. Tap to install.</string>
@@ -281,4 +280,6 @@
     <string name="update_repo_note">Filled in automatically by the GitHub build. Change only if you move the project.</string>
     <string name="notif_sprint_quali_sub">Sprint weekends only</string>
     <string name="notif_sprint_race_sub">The Saturday sprint race</string>
+    <string name="update_new_title">New version available: %1$d</string>
+    <string name="update_current">Current version: %1$d</string>
 </resources>

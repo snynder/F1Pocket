@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.F1Pocket" parent="Theme.AppCompat.DayNight.NoActionBar">
+    <style name="Theme.RacePocket" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="android:windowBackground">@color/bg</item>
         <item name="colorPrimary">@color/accent</item>
     </style>

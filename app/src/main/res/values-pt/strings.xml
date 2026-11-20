@@ -270,7 +270,6 @@
     <string name="update_check">Verificar atualização</string>
     <string name="update_checking">Verificando…</string>
     <string name="update_none">Você está na versão mais recente.</string>
-    <string name="update_available">A versão %1$d está disponível.</string>
     <string name="update_install">Atualizar agora</string>
     <string name="update_downloading">Baixando… %1$d%%</string>
     <string name="update_ready">Versão %1$d baixada. Toque para instalar.</string>
@@ -280,4 +279,6 @@
     <string name="update_repo_note">Preenchido automaticamente pelo build do GitHub. Só mude se trocar o projeto de lugar.</string>
     <string name="notif_sprint_quali_sub">Só em fins de semana com sprint</string>
     <string name="notif_sprint_race_sub">A corrida sprint de sábado</string>
+    <string name="update_new_title">Nova versão disponível: %1$d</string>
+    <string name="update_current">Versão atual: %1$d</string>
 </resources>

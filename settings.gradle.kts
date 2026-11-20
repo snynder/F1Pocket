@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "F1Pocket"
+rootProject.name = "RacePocket"
 include(":app")

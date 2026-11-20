@@ -7,11 +7,11 @@ plugins {
 val runNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
 
 android {
-    namespace = "com.f1pocket.app"
+    namespace = "com.racepocket.app"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.f1pocket.app"
+        applicationId = "com.racepocket.app"
         minSdk = 26
         targetSdk = 35
         versionCode = runNumber
@@ -26,10 +26,10 @@ android {
     val ksPass = System.getenv("KEYSTORE_PASSWORD")
     signingConfigs {
         if (ksFile != null && ksFile.exists() && !ksPass.isNullOrEmpty()) {
-            create("f1pocket") {
+            create("release") {
                 storeFile = ksFile
                 storePassword = ksPass
-                keyAlias = "f1pocket"
+                keyAlias = "f1pocket" // alias stored inside the existing keystore (GitHub secret); changing it needs a new keystore
                 keyPassword = ksPass
             }
         }
@@ -41,7 +41,7 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // without the secrets (e.g. a build on your own PC) it falls back to the debug key
-            signingConfig = signingConfigs.findByName("f1pocket") ?: signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 

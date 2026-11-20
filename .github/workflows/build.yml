@@ -31,11 +31,11 @@ jobs:
             echo "::error::Cadastre os segredos KEYSTORE_BASE64 e KEYSTORE_PASSWORD em Settings > Secrets and variables > Actions"
             exit 1
           fi
-          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/f1pocket.jks"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/racepocket.jks"
 
       - name: Build
         env:
-          KEYSTORE_FILE: ${{ runner.temp }}/f1pocket.jks
+          KEYSTORE_FILE: ${{ runner.temp }}/racepocket.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
           chmod +x gradlew
@@ -43,23 +43,23 @@ jobs:
 
       - name: Remove signing key
         if: always()
-        run: rm -f "$RUNNER_TEMP/f1pocket.jks"
+        run: rm -f "$RUNNER_TEMP/racepocket.jks"
 
       - name: Rename APK
         run: |
-          cp app/build/outputs/apk/release/app-release.apk F1Pocket-${{ github.run_number }}.apk
-          cp app/build/outputs/apk/release/app-release.apk F1Pocket.apk
+          cp app/build/outputs/apk/release/app-release.apk RacePocket-${{ github.run_number }}.apk
+          cp app/build/outputs/apk/release/app-release.apk RacePocket.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: F1Pocket-${{ github.run_number }}
-          path: F1Pocket-${{ github.run_number }}.apk
+          name: RacePocket-${{ github.run_number }}
+          path: RacePocket-${{ github.run_number }}.apk
 
       # The app checks this release to update itself.
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: F1Pocket ${{ github.run_number }}
+          name: RacePocket ${{ github.run_number }}
           body: ${{ github.event.head_commit.message }}
-          files: F1Pocket.apk
+          files: RacePocket.apk
